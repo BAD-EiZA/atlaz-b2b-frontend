@@ -44,7 +44,7 @@ export function Header() {
           {/* Logo besar (desktop) */}
           <div className="hidden sm:block">
             <Image
-              src="/images/logo.webp"
+              src="/b2b/images/logo.webp"
               alt="Atlaz English Test"
               width={160}
               height={40}
@@ -54,7 +54,7 @@ export function Header() {
           {/* Logo simple (mobile) */}
           <div className="sm:hidden">
             <Image
-              src="/images/logo.webp"
+              src="/b2b/images/logo.webp"
               alt="Atlaz"
               width={28}
               height={28}
