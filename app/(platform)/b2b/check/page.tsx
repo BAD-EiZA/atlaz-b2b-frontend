@@ -36,7 +36,7 @@ export default function B2BCheckOrgPage() {
     const run = async () => {
       try {
         const res = await fetch(
-          `http://localhost:4002/v1/b2b/me/org`,
+          `https://api-academy.hiatlaz.com/b2b-admin/v1/b2b/me/org`,
           {
             method: "GET",
             headers: {
