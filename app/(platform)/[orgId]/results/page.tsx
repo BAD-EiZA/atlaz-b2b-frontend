@@ -189,7 +189,7 @@ export default function ResultsPage() {
           </p>
         </div>
         <div className="flex  gap-2">
-          <Link href={`/b2b/${1}/dashboard`}>
+          <Link href={`/${orgId}/dashboard`}>
             <Button variant="outline" className="gap-2 bg-transparent">
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard

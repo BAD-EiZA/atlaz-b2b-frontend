@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
     if (String(orgId) !== String(params.orgId)) {
       // kalau orgId di URL beda dengan orgId di store, normalkan
-      router.replace(`/b2b/${orgId}/dashboard`);
+      router.replace(`/${orgId}/dashboard`);
     }
   }, [orgId, user, params.orgId, router]);
   const { data, isLoading, error } = useDashboard(orgId!);
@@ -33,25 +33,25 @@ export default function DashboardPage() {
 
   const quickMenuItems = [
     {
-      href: `/b2b/${orgId}/organization`,
+      href: `/${orgId}/organization`,
       icon: Building,
       label: "Organization",
       description: "Manage org profile",
     },
     {
-      href: `/b2b/${orgId}/quota`,
+      href: `/${orgId}/quota`,
       icon: Settings,
       label: "Quota & Purchase",
       description: "Buy test quotas",
     },
     {
-      href: `/b2b/${orgId}/students`,
+      href: `/${orgId}/students`,
       icon: Users,
       label: "Students",
       description: "Manage students",
     },
     {
-      href: `/b2b/${orgId}/results`,
+      href: `/${orgId}/results`,
       icon: FileText,
       label: "Test Results",
       description: "View reports",

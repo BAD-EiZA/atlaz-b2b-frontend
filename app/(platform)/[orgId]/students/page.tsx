@@ -146,7 +146,7 @@ export default function StudentsPage() {
           </p>
         </div>
         <div className="flex md:flex-row flex-col space-y-1 gap-2">
-          <Link href={`/b2b/${orgId}/dashboard`}>
+          <Link href={`/${orgId}/dashboard`}>
             <Button variant="outline" className="gap-2 bg-transparent">
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard

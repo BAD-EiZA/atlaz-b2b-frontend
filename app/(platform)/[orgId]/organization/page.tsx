@@ -112,7 +112,7 @@ export default function OrganizationPage() {
             Manage your organization profile
           </p>
         </div>
-        <Link href={`/b2b/${orgId}/dashboard`}>
+        <Link href={`/${orgId}/dashboard`}>
           <Button variant="outline" className="gap-2 bg-transparent">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
