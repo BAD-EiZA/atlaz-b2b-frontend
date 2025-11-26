@@ -1,11 +1,10 @@
+// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  basePath: "/b2b",
+  trailingSlash: true,
   images: {
-    unoptimized: true,
+    domains: ["atlaz-content.s3.ap-southeast-1.amazonaws.com"],
   },
-}
-
-export default nextConfig
+};
+export default nextConfig;
