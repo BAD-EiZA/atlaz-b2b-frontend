@@ -133,7 +133,7 @@ export function getRemainingQuota(
 
   const key = String(typeId);
   const item = examSummary.perType[key];
-  if (!item) return examSummary.totalRemaining;
+  if (!item) return 0;
 
   return item.remaining;
 }
