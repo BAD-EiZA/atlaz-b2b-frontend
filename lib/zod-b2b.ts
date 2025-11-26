@@ -121,7 +121,11 @@ const paymentHistoryItemSchema = z.object({
   paidAt: z.string().nullable().optional(),
   payerEmail: z.string().nullable().optional(),
   created_at: z.string(),
-  rawPayload: z.unknown().optional().nullable(),
+   rawPayload: z.object({
+    pkg: z.object({
+      title: z.string(),
+    }).optional(), // Dibuat optional untuk keamanan jika response tidak memiliki pkg
+  }).passthrough().optional().nullable(), 
 });
 
 export const paymentHistorySchema = z.object({

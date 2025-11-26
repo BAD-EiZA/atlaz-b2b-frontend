@@ -465,9 +465,6 @@ export default function QuotaPage() {
                       Package
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">
-                      Tests
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">
                       Amount
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">
@@ -486,9 +483,6 @@ export default function QuotaPage() {
                       </td>
                       <td className="py-3 px-4 text-sm text-foreground">
                         {transaction.package}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-semibold text-foreground">
-                        {transaction.tests ?? "-"}
                       </td>
                       <td className="py-3 px-4 text-sm font-semibold text-foreground">
                         {transaction.currency === "IDR"
