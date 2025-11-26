@@ -4,8 +4,8 @@ RUN npm install -g pnpm@9.0
 FROM base AS builder
 WORKDIR /app
 
-ARG NEXT_PUBLIC_URL_BACKEND
-ENV NEXT_PUBLIC_URL_BACKEND=$NEXT_PUBLIC_URL_BACKEND
+ARG NEXT_PUBLIC_API_BASE
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
