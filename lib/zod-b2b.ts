@@ -27,13 +27,54 @@ export type OrgFormValues = z.infer<typeof orgFormSchema>;
 
 /* ---------- DASHBOARD SUMMARY ---------- */
 
+const quotaByExamTypeItemSchema = z.object({
+  examType: z.string(),          // "IELTS" | "TOEFL ITP"
+  totalQuotaBought: z.number(),
+  totalQuotaUsed: z.number(),
+  remainingQuota: z.number(),
+});
+
+// 2) Monthly tests trend
+const monthlyTestsItemSchema = z.object({
+  month: z.string(),             // e.g. "Jan 2025"
+  ielts: z.number(),
+  toefl: z.number(),
+});
+
+// 3) Average score per skill
+const skillAvgItemSchema = z.object({
+  skill: z.string(),             // "Listening", "Reading", etc.
+  avgScore: z.number(),
+});
+
+// 4) Radar points for CEFR & band
+const radarItemSchema = z.object({
+  label: z.string(),             // "A1", "B2", "6.5", etc.
+  students: z.number(),
+});
+
 export const dashboardSummarySchema = z.object({
-  activeStudents: z.number().int().nonnegative(),
-  testsConducted: z.number().int().nonnegative(),
-  quotas: z.object({
-    used: z.number().int().nonnegative(),
-    total: z.number().int().nonnegative(),
-  }),
+  // ---- OLD FIELDS (summary cards) ----
+  activeStudents: z.number().optional().default(0),
+  testsConducted: z.number().optional().default(0),
+  quotas: z
+    .object({
+      used: z.number().optional().default(0),
+      total: z.number().optional().default(0),
+    })
+    .optional()
+    .default({
+      used: 0,
+      total: 0,
+    }),
+
+  // ---- NEW FIELDS (charts) ----
+  quotaByExamType: z.array(quotaByExamTypeItemSchema).optional().default([]),
+  monthlyTests: z.array(monthlyTestsItemSchema).optional().default([]),
+  ieltsSkillAvg: z.array(skillAvgItemSchema).optional().default([]),
+  toeflSkillAvg: z.array(skillAvgItemSchema).optional().default([]),
+  cefrDistribution: z.array(radarItemSchema).optional().default([]),
+  ieltsBandDistribution: z.array(radarItemSchema).optional().default([]),
 });
 
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;

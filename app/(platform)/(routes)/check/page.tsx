@@ -27,9 +27,9 @@ export default function B2BCheckOrgPage() {
     console.log(token,"TOKNE")
 
     if (!token) {
-      //  setCookie("accessToken", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzOTQsIm5hbWUiOiJFcnphIEIyQiIsInVzZXJuYW1lIjoiZXJ6YS5hZG1pbkBiMmIuY29tIiwiZW1haWwiOiJlcnphLmFkbWluQGIyYi5jb20iLCJyb2xlX2lkIjoyLCJzdGF0dXMiOnRydWUsInJlZmVycmFsX2NvZGUiOiJCQThDR1FLIiwiaXNCb29rQWN0aXZlIjpmYWxzZSwicmVtZW1iZXIiOmZhbHNlLCJpYXQiOjE3NjQxNDM3OTAsImV4cCI6MTc2NDIzMDE5MH0.22uN7E58AYBxqrgd1_TDcr11iZBEAju5ev3ECSYcKog")
+       setCookie("accessToken", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzOTQsIm5hbWUiOiJFcnphIEIyQiIsInVzZXJuYW1lIjoiZXJ6YS5hZG1pbkBiMmIuY29tIiwiZW1haWwiOiJlcnphLmFkbWluQGIyYi5jb20iLCJyb2xlX2lkIjoyLCJzdGF0dXMiOnRydWUsInJlZmVycmFsX2NvZGUiOiJCQThDR1FLIiwiaXNCb29rQWN0aXZlIjpmYWxzZSwicmVtZW1iZXIiOmZhbHNlLCJpYXQiOjE3NjQyMTUwODcsImV4cCI6MTc2NDMwMTQ4N30.y20K9cCvjFtPEaaJK1RmY_sUUcachJeceZzn2dHDf98")
       // tidak login → balik ke homepage
-      router.replace("https://academy.hiatlaz.com/");
+      // router.replace("https://academy.hiatlaz.com/");
       return;
     }
 

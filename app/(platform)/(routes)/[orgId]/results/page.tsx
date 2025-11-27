@@ -67,6 +67,9 @@ export default function ResultsPage() {
               </th>
               {isIelts ? (
                 <>
+                <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Exam Date
+                  </th>
                   <th className="text-left py-3 px-4 font-semibold text-foreground">
                     Listening
                   </th>

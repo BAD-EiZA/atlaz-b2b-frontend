@@ -193,7 +193,7 @@ export function QuotaAllocationModal({
               user_id: userId,
               test_type_id: typeId,
               amount: op.diff,
-              admin_id: adminId,
+              admin_id: user?.id,
             });
           } else {
             await revoke({
@@ -201,7 +201,7 @@ export function QuotaAllocationModal({
               user_id: userId,
               test_type_id: typeId,
               amount: Math.abs(op.diff),
-              admin_id: adminId,
+              admin_id: user?.id,
             });
           }
         }
