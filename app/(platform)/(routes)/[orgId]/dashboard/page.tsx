@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building, FileText, Settings, Users } from "lucide-react";
+import { ArrowLeft, Building, FileText, Settings, Users } from "lucide-react";
 
 import { useB2BOrgStore } from "@/store/useB2BOrgStore";
 import {
@@ -114,7 +114,7 @@ function SkillBarCombinedChart({
 
   const chartData = rawData.map((item, index) => ({
     skill: item.skill,
-    avgScore: Math.floor(item.avgScore) ,
+    avgScore: Math.floor(item.avgScore),
     fill: palette[index % palette.length],
   }));
 
@@ -168,7 +168,6 @@ function SkillBarCombinedChart({
             layout="vertical"
             margin={{ left: 20 }}
             barSize={40}
-            
           >
             <YAxis
               dataKey="skill"
@@ -177,7 +176,7 @@ function SkillBarCombinedChart({
               tickMargin={5}
               axisLine={false}
             />
-            <XAxis dataKey="avgScore" type="number"  />
+            <XAxis dataKey="avgScore" type="number" />
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent hideLabel />}
@@ -629,9 +628,17 @@ export default function DashboardPage() {
 
       {/* QUICK MENU */}
       <div className="mb-8">
-        <h2 className="mb-6 text-lg font-semibold text-foreground">
-          Quick Menu
-        </h2>
+        <div className="flex flex-col md:flex-row md:justify-between ">
+          <h2 className="mb-6 text-lg font-semibold text-foreground">
+            Quick Menu
+          </h2>
+          <Link href={`https://academy.hiatlaz.com/`}>
+            <Button variant="outline" className="gap-2 bg-transparent">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Academy
+            </Button>
+          </Link>
+        </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {quickMenuItems.map((item) => (
             <Link key={item.href} href={item.href} className="group">

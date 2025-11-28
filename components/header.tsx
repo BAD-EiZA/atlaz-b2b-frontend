@@ -30,7 +30,7 @@ export function Header() {
     }
 
     clear?.();
-    router.push("/login");
+    router.push("https://academy.hiatlaz.com/login");
   };
 
   const displayName = user?.name || "User";
