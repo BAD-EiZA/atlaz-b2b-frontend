@@ -69,7 +69,7 @@ export function buildExamPackages(data: OrgPackagesResponse): UiExamPackages {
 
     const uiPackages: UiPackage[] = group.packages.map((pkg) => ({
       id: pkg.id,
-      name: `${pkg.attempt_quota} Tests`,
+      name: `${pkg.attempt_quota} Quota`,
       price: Number(pkg.priceInt ?? pkg.price ?? 0),
       quotaAmount: pkg.attempt_quota,
       features: [

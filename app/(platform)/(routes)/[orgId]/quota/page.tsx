@@ -404,7 +404,7 @@ export default function QuotaPage() {
 
                     <div className="mb-6 flex items-center gap-2 text-sm font-semibold text-primary">
                       <Zap className="h-4 w-4" />
-                      {pkg.quotaAmount} tests
+                      {pkg.quotaAmount}x Tests
                     </div>
 
                     <ul className="mb-6 space-y-3">
