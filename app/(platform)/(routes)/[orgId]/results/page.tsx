@@ -181,7 +181,7 @@ export default function ResultsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex  md:flex-row flex-col items-center justify-between mb-4">
+      <div className="flex  md:flex-row flex-col items-start md:items-center justify-between mb-4">
         <div className="flex-1">
           <Breadcrumb items={[{ label: "Test Results" }]} />
           <h1 className=" text-2xl md:text-3xl font-bold text-foreground">
