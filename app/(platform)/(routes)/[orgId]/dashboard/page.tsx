@@ -628,7 +628,7 @@ export default function DashboardPage() {
 
       {/* QUICK MENU */}
       <div className="mb-8">
-        <div className="flex flex-col md:flex-row md:justify-between items-center ">
+        <div className="flex flex-col md:flex-row md:justify-between items-center mb-2 ">
           <h2 className=" text-lg font-semibold text-foreground">
             Quick Menu
           </h2>
