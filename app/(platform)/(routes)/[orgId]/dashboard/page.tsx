@@ -628,7 +628,7 @@ export default function DashboardPage() {
 
       {/* QUICK MENU */}
       <div className="mb-8">
-        <div className="flex flex-col md:flex-row md:justify-between items-center mb-2 ">
+        <div className="flex flex-col items-start md:flex-row md:justify-between md:items-center mb-2 ">
           <h2 className=" text-lg font-semibold text-foreground">
             Quick Menu
           </h2>
@@ -687,7 +687,7 @@ export default function DashboardPage() {
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           {/* Test mode toggle */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-col md:flex-row items-center gap-2 text-sm">
             <span className="text-muted-foreground">Test type:</span>
             <div className="inline-flex items-center gap-1 rounded-md border bg-background p-1">
               {TEST_MODE_OPTIONS.map((opt) => (
