@@ -13,7 +13,7 @@ const getAccessToken = () => {
   return (
     document.cookie
       .split("; ")
-      .find((row) => row.startsWith("accessToken="))
+      .find((row) => row.startsWith("refreshToken="))
       ?.split("=")[1] || null
   );
 };
