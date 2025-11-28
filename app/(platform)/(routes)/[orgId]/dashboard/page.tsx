@@ -687,7 +687,7 @@ export default function DashboardPage() {
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           {/* Test mode toggle */}
-          <div className="flex flex-col md:flex-row items-center gap-2 text-sm">
+          <div className="flex flex-col items-start md:flex-row md:items-center gap-2 text-sm">
             <span className="text-muted-foreground">Test type:</span>
             <div className="inline-flex items-center gap-1 rounded-md border bg-background p-1">
               {TEST_MODE_OPTIONS.map((opt) => (

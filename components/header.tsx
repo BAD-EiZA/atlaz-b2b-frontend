@@ -56,9 +56,9 @@ export function Header() {
             <Image
               src="/b2b/images/logo.webp"
               alt="Atlaz"
-              width={28}
+              width={48}
               height={28}
-              className="h-9 w-9"
+              className="h-9 w-auto"
             />
           </div>
         </Link>
