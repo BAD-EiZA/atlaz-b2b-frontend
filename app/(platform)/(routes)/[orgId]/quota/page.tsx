@@ -88,10 +88,11 @@ export default function QuotaPage() {
         }
 
         // 2) Kirim ke API route yang pakai geoip-country
-        const geoRes = await fetch(`/api/geoip?ip=${encodeURIComponent(ip)}`);
+        const geoRes = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}`);
         const geoJson = await geoRes.json();
 
-        const country = geoJson?.country as string | null;
+        console.log(geoJson,"GEO")
+        const country = geoJson?.countryCode as string | null;
 
         // 3) Atur currency:
         //    - Indonesia (ID) => IDR
@@ -215,7 +216,10 @@ export default function QuotaPage() {
           throw new Error("Failed to convert currency");
         }
 
+
         const data = await res.json();
+
+        console.log(data,"FETCH USD")
 
         const newMap: Record<number, number> = {};
         (data.items || []).forEach(
