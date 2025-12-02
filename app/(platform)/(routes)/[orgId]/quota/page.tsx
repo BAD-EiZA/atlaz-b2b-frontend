@@ -451,7 +451,7 @@ export default function QuotaPage() {
       </div>
 
       {/* Current Usage */}
-      <Card className="mb-8 p-6">
+      <Card className="mb-3 p-6">
         {summaryError ? (
           <p className="text-sm text-red-500">
             Failed to load quota summary. Please try again.
@@ -494,8 +494,8 @@ export default function QuotaPage() {
         <p className="text-xs text-muted-foreground mb-4">
           Currency:{" "}
           {currency === "IDR"
-            ? "IDR (Indonesia)"
-            : "USD (outside Indonesia)"}
+            ? "IDR"
+            : "USD"}
         </p>
 
         {packagesError && (
