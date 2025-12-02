@@ -200,7 +200,7 @@ export default function QuotaPage() {
 
     const fetchUSDPrices = async () => {
       try {
-        const res = await fetch("/api/currency", {
+        const res = await fetch("/b2b/api/currency", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
