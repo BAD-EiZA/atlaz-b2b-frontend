@@ -97,7 +97,7 @@ export default function QuotaPage() {
         // 3) Atur currency:
         //    - Indonesia (ID) => IDR
         //    - Selain itu => USD
-        if (country && country.toUpperCase() !== "ID") {
+        if (country && country.toUpperCase() == "ID") {
           setCurrency("USD");
         } else {
           setCurrency("IDR");
