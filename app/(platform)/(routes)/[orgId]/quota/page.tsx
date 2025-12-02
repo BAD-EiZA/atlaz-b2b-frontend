@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation"; // ⬅️ ADD useRouter
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios"; // ⬅️ ADD axios
+import axios from "axios";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,8 +36,23 @@ const getAccessToken = () => {
 };
 
 type ExamKey = "ielts" | "toefl";
+type Currency = "IDR" | "USD";
 
 const MAX_VISIBLE_PACKAGES = 4;
+
+const formatIDR = (amount: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(amount);
+
+const formatUSD = (amount: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+  }).format(amount);
 
 export default function QuotaPage() {
   const params = useParams<{ orgId: string }>();
@@ -55,6 +70,47 @@ export default function QuotaPage() {
 
   // context B2B (org + user) dari zustand
   const { org, user } = useB2BOrgStore();
+
+  // ---- Currency detection ----
+  const [currency, setCurrency] = useState<Currency>("IDR");
+  const [isDetectingCurrency, setIsDetectingCurrency] = useState(true);
+
+  useEffect(() => {
+    const detectCurrency = async () => {
+      try {
+        // 1) Dapatkan IP publik user dari ipify
+        const ipRes = await fetch("https://api.ipify.org?format=json");
+        const ipJson = await ipRes.json();
+        const ip = ipJson?.ip;
+
+        if (!ip) {
+          throw new Error("IP not found");
+        }
+
+        // 2) Kirim ke API route yang pakai geoip-country
+        const geoRes = await fetch(`/api/geoip?ip=${encodeURIComponent(ip)}`);
+        const geoJson = await geoRes.json();
+
+        const country = geoJson?.country as string | null;
+
+        // 3) Atur currency:
+        //    - Indonesia (ID) => IDR
+        //    - Selain itu => USD
+        if (country && country.toUpperCase() !== "ID") {
+          setCurrency("USD");
+        } else {
+          setCurrency("IDR");
+        }
+      } catch (error) {
+        console.error("Failed to detect location, fallback to IDR:", error);
+        setCurrency("IDR");
+      } finally {
+        setIsDetectingCurrency(false);
+      }
+    };
+
+    detectCurrency();
+  }, []);
 
   // ---- Data hooks ----
   const {
@@ -118,25 +174,93 @@ export default function QuotaPage() {
     ? Math.max(1, Math.ceil(historyData.raw.total / pageSize))
     : 1;
 
-  const formatIDR = (amount: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-
   const getPricePerTest = (price: number, quota: number) => {
     if (!quota) return 0;
     return Math.round(price / quota);
   };
 
-  // ---------- BUY handler (create invoice B2B, mirip pricing_b2b.jsx) ----------
+  // ---- Map harga USD per packageId (hasil dari easy-currencies via API route) ----
+  const [usdPriceMap, setUsdPriceMap] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    // Hanya konversi kalau:
+    // - currency = USD (user di luar Indonesia)
+    // - dan ada currentPackages
+    if (currency !== "USD") return;
+    if (!currentPackages.length) return;
+
+    // Cari package yang belum punya harga USD
+    const missingPkgs = currentPackages.filter(
+      (pkg: any) => usdPriceMap[pkg.id] == null
+    );
+    if (!missingPkgs.length) return;
+
+    const controller = new AbortController();
+
+    const fetchUSDPrices = async () => {
+      try {
+        const res = await fetch("/api/currency/convert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            packages: missingPkgs.map((pkg: any) => ({
+              id: pkg.id,
+              amount: pkg.price, // harga IDR
+            })),
+          }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to convert currency");
+        }
+
+        const data = await res.json();
+
+        const newMap: Record<number, number> = {};
+        (data.items || []).forEach(
+          (item: { id: number; usd: number; idr: number }) => {
+            newMap[item.id] = item.usd;
+          }
+        );
+
+        setUsdPriceMap((prev) => ({ ...prev, ...newMap }));
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("Currency conversion error:", error);
+      }
+    };
+
+    fetchUSDPrices();
+
+    return () => controller.abort();
+  }, [currency, currentPackages, usdPriceMap]);
+
+  // Helper: ambil harga yang ditampilkan sesuai currency (IDR / USD)
+  const getDisplayPrice = (pkg: any) => {
+    if (currency === "USD") {
+      const usd = usdPriceMap[pkg.id];
+      if (usd != null) {
+        return {
+          amount: usd,
+          currency: "USD" as Currency,
+        };
+      }
+      // Kalau USD belum ready (lagi fetch / error), sementara fallback IDR
+    }
+
+    return {
+      amount: pkg.price as number,
+      currency: "IDR" as Currency,
+    };
+  };
+
+  // ---------- BUY handler (create invoice B2B) ----------
   const [buyingId, setBuyingId] = useState<number | null>(null);
 
   const handlePurchase = async (pkg: any) => {
     // Pastikan user login
     if (!user?.id) {
-      // Kalau mau bisa diarahkan ke halaman login LMS
       router.push("/login");
       return;
     }
@@ -148,6 +272,11 @@ export default function QuotaPage() {
       return;
     }
 
+    // Kalau user di luar Indonesia, kita set currency = USD, kalau tidak IDR.
+    const displayPrice = getDisplayPrice(pkg);
+    const finalCurrency: Currency =
+      currency === "USD" ? "USD" : displayPrice.currency;
+
     try {
       setBuyingId(pkg.id);
 
@@ -157,14 +286,12 @@ export default function QuotaPage() {
       };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      // NOTE:
-      // - Sesuaikan BASE_API di env LMS (misal NEXT_PUBLIC_TEST_API_URL / NEXT_PUBLIC_BASE_API_URL)
       const res = await axios.post(
         `https://api-test.hiatlaz.com/api/v1/payment_b2b/payment/create-invoice`,
         {
           orgId: finalOrgId,
-          priceId: pkg.id, // id di sini = b2b_org_price.id (sama seperti pricing_b2b.jsx)
-          currency: "IDR", // LMS B2B: fokus IDR. Kalau mau multicurrency, tinggal ganti.
+          priceId: pkg.id,
+          currency: finalCurrency, // "IDR" atau "USD"
           user: {
             id: user.id,
             email: user.email,
@@ -175,11 +302,7 @@ export default function QuotaPage() {
 
       const url = res?.data?.data?.invoice_url;
       if (url) {
-        // Opsi 1: langsung ke URL invoice (lebih simpel untuk LMS)
         window.location.href = url;
-
-        // Opsi 2 kalau mau pakai wrapper page seperti di pricing_b2b.jsx:
-        // router.push(`/payment-page?url=${encodeURIComponent(url)}&from=b2b_lms_quota`);
       } else {
         alert("Gagal membuat invoice. Silakan coba lagi.");
       }
@@ -199,9 +322,6 @@ export default function QuotaPage() {
   const examLabel =
     currentExam?.name ?? (selectedExam === "ielts" ? "IELTS" : "TOEFL");
 
-  const isLoadingAll = packagesLoading || summaryLoading;
-
-  // ---- Carousel logic ----
   const totalPackages = currentPackages.length;
   const maxStartIndex = Math.max(0, totalPackages - MAX_VISIBLE_PACKAGES);
   const showCarouselControls = totalPackages > MAX_VISIBLE_PACKAGES;
@@ -240,6 +360,15 @@ export default function QuotaPage() {
             Back to Dashboard
           </Button>
         </Link>
+      </div>
+
+      {/* Info currency */}
+      <div className="mb-4 text-sm text-muted-foreground">
+        {isDetectingCurrency
+          ? "Detecting your location and currency..."
+          : currency === "IDR"
+          ? "Prices are shown in Indonesian Rupiah (IDR)."
+          : "Prices are shown in US Dollars (USD) based on your location."}
       </div>
 
       {/* Exam Type Selection */}
@@ -327,9 +456,12 @@ export default function QuotaPage() {
 
       {/* Pricing Packages */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-foreground mb-4">
+        <h2 className="text-xl font-semibold text-foreground mb-2">
           Buy {examLabel} {selectedTestType} Quota
         </h2>
+        <p className="text-xs text-muted-foreground mb-4">
+          Currency: {currency === "IDR" ? "IDR (Indonesia)" : "USD (outside Indonesia)"}
+        </p>
 
         {packagesError && (
           <p className="text-sm text-red-500 mb-4">
@@ -372,64 +504,82 @@ export default function QuotaPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {visiblePackages.map((pkg) => (
-                  <Card
-                    key={pkg.id}
-                    className={`p-6 relative transition-all ${
-                      pkg.popular
-                        ? "ring-2 ring-primary shadow-lg"
-                        : "border-border"
-                    }`}
-                  >
-                    {pkg.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
-                          Best Value
-                        </span>
-                      </div>
-                    )}
+                {visiblePackages.map((pkg: any) => {
+                  const displayPrice = getDisplayPrice(pkg);
+                  const totalPrice = displayPrice.amount;
+                  const pricePerTest = getPricePerTest(
+                    totalPrice,
+                    pkg.quotaAmount
+                  );
 
-                    <h3 className="text-lg font-bold text-foreground mb-2">
-                      {pkg.name}
-                    </h3>
-                    <div className="mb-6">
-                      <div className="text-3xl font-bold text-foreground">
-                        {formatIDR(pkg.price)}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {formatIDR(getPricePerTest(pkg.price, pkg.quotaAmount))}{" "}
-                        per test
-                      </p>
-                    </div>
+                  const formattedTotal =
+                    displayPrice.currency === "IDR"
+                      ? formatIDR(totalPrice)
+                      : formatUSD(totalPrice);
 
-                    <div className="mb-6 flex items-center gap-2 text-sm font-semibold text-primary">
-                      <Zap className="h-4 w-4" />
-                      {pkg.quotaAmount}x Tests
-                    </div>
+                  const formattedPerTest =
+                    displayPrice.currency === "IDR"
+                      ? formatIDR(pricePerTest)
+                      : formatUSD(pricePerTest);
 
-                    <ul className="mb-6 space-y-3">
-                      {pkg.features.map((feature: string, idx: number) => (
-                        <li
-                          key={idx}
-                          className="flex items-start gap-2 text-sm text-foreground"
-                        >
-                          <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Button
-                      onClick={() => handlePurchase(pkg)}
-                      className="w-full gap-2"
-                      variant={pkg.popular ? "default" : "outline"}
-                      disabled={buyingId === pkg.id}
+                  return (
+                    <Card
+                      key={pkg.id}
+                      className={`p-6 relative transition-all ${
+                        pkg.popular
+                          ? "ring-2 ring-primary shadow-lg"
+                          : "border-border"
+                      }`}
                     >
-                      <ShoppingCart className="h-4 w-4" />
-                      {buyingId === pkg.id ? "Processing..." : "Buy Now"}
-                    </Button>
-                  </Card>
-                ))}
+                      {pkg.popular && (
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                          <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
+                            Best Value
+                          </span>
+                        </div>
+                      )}
+
+                      <h3 className="text-lg font-bold text-foreground mb-2">
+                        {pkg.name}
+                      </h3>
+                      <div className="mb-6">
+                        <div className="text-3xl font-bold text-foreground">
+                          {formattedTotal}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {formattedPerTest} per test
+                        </p>
+                      </div>
+
+                      <div className="mb-6 flex items-center gap-2 text-sm font-semibold text-primary">
+                        <Zap className="h-4 w-4" />
+                        {pkg.quotaAmount}x Tests
+                      </div>
+
+                      <ul className="mb-6 space-y-3">
+                        {pkg.features.map((feature: string, idx: number) => (
+                          <li
+                            key={idx}
+                            className="flex items-start gap-2 text-sm text-foreground"
+                          >
+                            <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+
+                      <Button
+                        onClick={() => handlePurchase(pkg)}
+                        className="w-full gap-2"
+                        variant={pkg.popular ? "default" : "outline"}
+                        disabled={buyingId === pkg.id}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        {buyingId === pkg.id ? "Processing..." : "Buy Now"}
+                      </Button>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           </>
