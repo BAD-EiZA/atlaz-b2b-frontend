@@ -23,6 +23,7 @@ import {
 } from "@/app/actions/hooks/b2b/useOrg";
 import { getExamQuotaPercent, getRemainingQuota } from "@/helper/query";
 import { useB2BOrgStore } from "@/store/useB2BOrgStore";
+import Loader from "@/components/common/Loader";
 
 // --- helper: ambil accessToken dari cookie (sama seperti pricing_b2b.jsx) ---
 const getAccessToken = () => {
@@ -49,10 +50,10 @@ const formatIDR = (amount: number) =>
 
 const formatUSD = (amount: number) =>
   new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+    style: "decimal",
     minimumFractionDigits: 0,
-  }).format(amount);
+    maximumFractionDigits: 2,
+  }).format(amount) + "$";
 
 export default function QuotaPage() {
   const params = useParams<{ orgId: string }>();
@@ -78,7 +79,6 @@ export default function QuotaPage() {
   useEffect(() => {
     const detectCurrency = async () => {
       try {
-        // 1) Dapatkan IP publik user dari ipify
         const ipRes = await fetch("https://api.ipify.org?format=json");
         const ipJson = await ipRes.json();
         const ip = ipJson?.ip;
@@ -87,17 +87,15 @@ export default function QuotaPage() {
           throw new Error("IP not found");
         }
 
-        // 2) Kirim ke API route yang pakai geoip-country
-        const geoRes = await fetch(`https://api.country.is/${encodeURIComponent(ip)}`);
+        const geoRes = await fetch(
+          `https://api.country.is/${encodeURIComponent(ip)}`
+        );
         const geoJson = await geoRes.json();
 
-        console.log(geoJson,"GEO")
+        console.log(geoJson, "GEO");
         const country = geoJson?.country as string | null;
 
-        // 3) Atur currency:
-        //    - Indonesia (ID) => IDR
-        //    - Selain itu => USD
-        if (country && country.toUpperCase() == "ID") {
+        if (country && country.toUpperCase() !== "ID") {
           setCurrency("USD");
         } else {
           setCurrency("IDR");
@@ -182,6 +180,7 @@ export default function QuotaPage() {
 
   // ---- Map harga USD per packageId (hasil dari easy-currencies via API route) ----
   const [usdPriceMap, setUsdPriceMap] = useState<Record<number, number>>({});
+  const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
 
   useEffect(() => {
     // Hanya konversi kalau:
@@ -190,7 +189,6 @@ export default function QuotaPage() {
     if (currency !== "USD") return;
     if (!currentPackages.length) return;
 
-    // Cari package yang belum punya harga USD
     const missingPkgs = currentPackages.filter(
       (pkg: any) => usdPriceMap[pkg.id] == null
     );
@@ -200,6 +198,8 @@ export default function QuotaPage() {
 
     const fetchUSDPrices = async () => {
       try {
+        setIsConvertingCurrency(true);
+
         const res = await fetch("/b2b/api/currency", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -216,10 +216,9 @@ export default function QuotaPage() {
           throw new Error("Failed to convert currency");
         }
 
-
         const data = await res.json();
 
-        console.log(data,"FETCH USD")
+        console.log(data, "FETCH USD");
 
         const newMap: Record<number, number> = {};
         (data.items || []).forEach(
@@ -232,6 +231,10 @@ export default function QuotaPage() {
       } catch (error) {
         if (controller.signal.aborted) return;
         console.error("Currency conversion error:", error);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsConvertingCurrency(false);
+        }
       }
     };
 
@@ -250,7 +253,11 @@ export default function QuotaPage() {
           currency: "USD" as Currency,
         };
       }
-      // Kalau USD belum ready (lagi fetch / error), sementara fallback IDR
+      // Saat USD belum ready, sementara fallback IDR (tapi kita sudah tunjukkan Loader di atas)
+      return {
+        amount: pkg.price as number,
+        currency: "IDR" as Currency,
+      };
     }
 
     return {
@@ -276,7 +283,6 @@ export default function QuotaPage() {
       return;
     }
 
-    // Kalau user di luar Indonesia, kita set currency = USD, kalau tidak IDR.
     const displayPrice = getDisplayPrice(pkg);
     const finalCurrency: Currency =
       currency === "USD" ? "USD" : displayPrice.currency;
@@ -295,7 +301,7 @@ export default function QuotaPage() {
         {
           orgId: finalOrgId,
           priceId: pkg.id,
-          currency: finalCurrency, // "IDR" atau "USD"
+          currency: finalCurrency,
           user: {
             id: user.id,
             email: user.email,
@@ -345,6 +351,28 @@ export default function QuotaPage() {
   const handlePrevPackages = () => {
     setCurrentPackageIndex((prev) => Math.max(prev - MAX_VISIBLE_PACKAGES, 0));
   };
+
+  // --- Loader condition & messages ---
+  const showPricingLoader =
+    isDetectingCurrency ||
+    packagesLoading ||
+    (currency === "USD" && isConvertingCurrency);
+
+  const pricingLoaderTitle = isDetectingCurrency
+    ? "Detecting your location and currency..."
+    : packagesLoading
+    ? "Loading available packages..."
+    : currency === "USD" && isConvertingCurrency
+    ? "Converting prices to USD..."
+    : "Loading...";
+
+  const pricingLoaderSubtitle = isDetectingCurrency
+    ? "We use your location to select the best currency for you."
+    : packagesLoading
+    ? "Fetching the latest quota packages for your organization."
+    : currency === "USD" && isConvertingCurrency
+    ? "Updating prices based on current exchange rates."
+    : "Please wait a moment.";
 
   return (
     <div className="p-8">
@@ -464,7 +492,10 @@ export default function QuotaPage() {
           Buy {examLabel} {selectedTestType} Quota
         </h2>
         <p className="text-xs text-muted-foreground mb-4">
-          Currency: {currency === "IDR" ? "IDR (Indonesia)" : "USD (outside Indonesia)"}
+          Currency:{" "}
+          {currency === "IDR"
+            ? "IDR (Indonesia)"
+            : "USD (outside Indonesia)"}
         </p>
 
         {packagesError && (
@@ -473,8 +504,13 @@ export default function QuotaPage() {
           </p>
         )}
 
-        {packagesLoading ? (
-          <p className="text-sm text-muted-foreground">Loading packages...</p>
+        {showPricingLoader ? (
+          <Loader
+            size="md"
+            title={pricingLoaderTitle}
+            subtitle={pricingLoaderSubtitle}
+            className="py-8"
+          />
         ) : currentPackages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No packages available for this test type.

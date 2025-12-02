@@ -54,6 +54,7 @@
     "geoip-country": "^5.0.202511282342",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
+    "motion": "^12.23.25",
     "nanoid": "^5.1.6",
     "next": "16.0.0",
     "next-themes": "latest",
