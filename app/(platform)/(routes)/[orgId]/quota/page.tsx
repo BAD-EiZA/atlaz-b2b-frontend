@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Pagination } from "@/components/pagination";
@@ -40,6 +41,7 @@ type ExamKey = "ielts" | "toefl";
 type Currency = "IDR" | "USD";
 
 const MAX_VISIBLE_PACKAGES = 4;
+const MIN_CUSTOM_QTY = 5;
 
 const formatIDR = (amount: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -54,6 +56,40 @@ const formatUSD = (amount: number) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount) + "$";
+
+// Mapping test_type_id sesuai info kamu
+const resolveTestTypeId = (
+  exam: ExamKey,
+  testTypeLabel: string,
+  pkg?: any
+): number | null => {
+  const key = String(testTypeLabel || "").trim().toLowerCase();
+
+  if (exam === "ielts") {
+    if (key === "listening") return 1;
+    if (key === "reading") return 2;
+    if (key === "writing") return 3;
+    if (key === "speaking") return 4;
+    if (key === "complete") return 5;
+  } else {
+    // TOEFL
+    if (key === "listening") return 1;
+    if (
+      key === "structure" ||
+      key === "structure & written expression" ||
+      key === "grammar"
+    )
+      return 2;
+    if (key === "reading") return 3;
+    if (key === "complete") return 4;
+  }
+
+  // fallback ke field dari pkg kalau ada
+  if (pkg?.test_type_id) return Number(pkg.test_type_id);
+  if (pkg?.testTypeId) return Number(pkg.testTypeId);
+
+  return null;
+};
 
 export default function QuotaPage() {
   const params = useParams<{ orgId: string }>();
@@ -164,7 +200,7 @@ export default function QuotaPage() {
     selectedTestType
   );
 
-  const quotaPercent = getExamQuotaPercent(quotaSummary, selectedExam);
+  const quotaPercent = getExamQuotaPercent(quotaSummary, selectedExam); // kalau dipakai di tempat lain
 
   const transactions = historyData?.transactions || [];
   const totalItems = historyData?.raw.total || 0;
@@ -284,8 +320,15 @@ export default function QuotaPage() {
     }
 
     const displayPrice = getDisplayPrice(pkg);
-    const finalCurrency: Currency =
-      currency === "USD" ? "USD" : displayPrice.currency;
+    const totalPrice = displayPrice.amount;
+    const finalCurrency: Currency = displayPrice.currency;
+    const testCategory = selectedExam === "ielts" ? "IELTS" : "TOEFL";
+
+    const testTypeId = resolveTestTypeId(selectedExam, selectedTestType, pkg);
+    if (!testTypeId) {
+      alert("Test type ID not found for this package.");
+      return;
+    }
 
     try {
       setBuyingId(pkg.id);
@@ -296,17 +339,31 @@ export default function QuotaPage() {
       };
       if (token) headers.Authorization = `Bearer ${token}`;
 
+      const payload = {
+        orgId: finalOrgId,
+        currency: finalCurrency,
+        amount: totalPrice,
+        user: {
+          id: user.id,
+          email: user.email,
+        },
+        price: {
+          id: pkg.id,
+          name: pkg.name,
+          title: pkg.name,
+          test_category: testCategory,
+          test_type_id: testTypeId,
+          attempt_quota: pkg.quotaAmount,
+          exam: selectedExam,
+          test_type: selectedTestType,
+          features: pkg.features,
+          popular: pkg.popular ?? false,
+        },
+      };
+
       const res = await axios.post(
         `https://api-test.hiatlaz.com/api/v1/payment_b2b/payment/create-invoice`,
-        {
-          orgId: finalOrgId,
-          priceId: pkg.id,
-          currency: finalCurrency,
-          user: {
-            id: user.id,
-            email: user.email,
-          },
-        },
+        payload,
         { headers }
       );
 
@@ -373,6 +430,147 @@ export default function QuotaPage() {
     : currency === "USD" && isConvertingCurrency
     ? "Updating prices based on current exchange rates."
     : "Please wait a moment.";
+
+  // -------------- CUSTOM QUOTA MODAL STATE --------------
+  const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  const [customQty, setCustomQty] = useState<string>(String(MIN_CUSTOM_QTY));
+  const [isBuyingCustom, setIsBuyingCustom] = useState(false);
+
+  // base package untuk custom pricing (pakai paket pertama di test type aktif)
+  const basePackageForCustom = currentPackages[0] || null;
+
+  const numericCustomQty = parseInt(customQty || "0", 10) || 0;
+
+  let customPerTest = 0;
+  let customCurrencyForDisplay: Currency = currency;
+
+  if (basePackageForCustom) {
+    const baseDisplay = getDisplayPrice(basePackageForCustom);
+    customCurrencyForDisplay = baseDisplay.currency;
+    customPerTest = getPricePerTest(
+      baseDisplay.amount,
+      basePackageForCustom.quotaAmount
+    );
+  }
+
+  const effectiveQty =
+    numericCustomQty && numericCustomQty > 0
+      ? Math.max(MIN_CUSTOM_QTY, numericCustomQty)
+      : MIN_CUSTOM_QTY;
+
+  const customTotal = customPerTest * effectiveQty;
+
+  const formattedCustomPerTest =
+    customCurrencyForDisplay === "IDR"
+      ? formatIDR(customPerTest)
+      : formatUSD(customPerTest);
+
+  const formattedCustomTotal =
+    customCurrencyForDisplay === "IDR"
+      ? formatIDR(customTotal)
+      : formatUSD(customTotal);
+
+  const handleOpenCustomModal = () => {
+    if (!currentPackages.length) {
+      alert("No packages available for this exam and test type.");
+      return;
+    }
+    setCustomQty(String(MIN_CUSTOM_QTY));
+    setIsCustomModalOpen(true);
+  };
+
+  const handleCustomPurchase = async () => {
+    if (!user?.id) {
+      router.push("/login");
+      return;
+    }
+
+    const finalOrgId = org?.id ?? orgId;
+    if (!finalOrgId) {
+      alert("Organization tidak ditemukan. Silakan pilih organisasi dulu.");
+      return;
+    }
+
+    if (!basePackageForCustom || !customPerTest) {
+      alert("Custom price is not available for this test type.");
+      return;
+    }
+
+    const testCategory = selectedExam === "ielts" ? "IELTS" : "TOEFL";
+    const qty =
+      numericCustomQty && numericCustomQty > 0
+        ? Math.max(MIN_CUSTOM_QTY, numericCustomQty)
+        : MIN_CUSTOM_QTY;
+
+    const total = customPerTest * qty;
+    const finalCurrency: Currency = customCurrencyForDisplay;
+
+    const testTypeId = resolveTestTypeId(
+      selectedExam,
+      selectedTestType,
+      basePackageForCustom
+    );
+    if (!testTypeId) {
+      alert("Test type ID not found for custom quota.");
+      return;
+    }
+
+    try {
+      setIsBuyingCustom(true);
+
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const payload = {
+        orgId: finalOrgId,
+        currency: finalCurrency,
+        amount: total,
+        user: {
+          id: user.id,
+          email: user.email,
+        },
+        price: {
+          id: null,
+          name: `Custom ${examLabel} ${selectedTestType} - ${qty}x`,
+          title: `Custom ${examLabel} ${selectedTestType} - ${qty}x`,
+          test_category: testCategory,
+          test_type_id: testTypeId,
+          attempt_quota: qty,
+          exam: selectedExam,
+          test_type: selectedTestType,
+          is_custom: true,
+          base_per_test: customPerTest,
+          base_package_id: basePackageForCustom.id,
+        },
+      };
+
+      const res = await axios.post(
+        `https://api-test.hiatlaz.com/api/v1/payment_b2b/payment/create-invoice`,
+        payload,
+        { headers }
+      );
+
+      const url = res?.data?.data?.invoice_url;
+      if (url) {
+        window.location.href = url;
+      } else {
+        alert("Gagal membuat invoice custom. Silakan coba lagi.");
+      }
+    } catch (err: any) {
+      console.error("B2B custom payment error:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to create custom invoice.";
+      alert(msg);
+    } finally {
+      setIsBuyingCustom(false);
+    }
+  };
 
   return (
     <div className="p-8">
@@ -458,7 +656,7 @@ export default function QuotaPage() {
           </p>
         ) : (
           <>
-            <div className="flex items-center justify-between ">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
                   Available Quota - {examLabel} {selectedTestType}
@@ -482,6 +680,19 @@ export default function QuotaPage() {
                 )}
               </div>
             </div>
+
+            {/* Button untuk custom quota */}
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenCustomModal}
+                className="gap-2"
+              >
+                <Zap className="h-4 w-4" />
+                Custom quota purchase (min {MIN_CUSTOM_QTY} tests)
+              </Button>
+            </div>
           </>
         )}
       </Card>
@@ -492,10 +703,7 @@ export default function QuotaPage() {
           Buy {examLabel} {selectedTestType} Quota
         </h2>
         <p className="text-xs text-muted-foreground mb-4">
-          Currency:{" "}
-          {currency === "IDR"
-            ? "IDR"
-            : "USD"}
+          Currency: {currency === "IDR" ? "IDR" : "USD"}
         </p>
 
         {packagesError && (
@@ -700,6 +908,78 @@ export default function QuotaPage() {
           </>
         )}
       </Card>
+
+      {/* CUSTOM QUOTA MODAL */}
+      {isCustomModalOpen && basePackageForCustom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md mx-4 p-6 relative">
+            <button
+              type="button"
+              onClick={() => setIsCustomModalOpen(false)}
+              className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              Custom Quota - {examLabel} {selectedTestType}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Minimum purchase is {MIN_CUSTOM_QTY} tests. The total price is
+              calculated from the current price per test.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Price per test
+                </p>
+                <p className="text-base font-semibold text-foreground">
+                  {formattedCustomPerTest}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">
+                  Quantity (tests)
+                </label>
+                <input
+                  type="number"
+                  min={MIN_CUSTOM_QTY}
+                  value={customQty}
+                  onChange={(e) => setCustomQty(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                />
+                {numericCustomQty > 0 && numericCustomQty < MIN_CUSTOM_QTY && (
+                  <p className="mt-1 text-xs text-red-500">
+                    Minimum purchase is {MIN_CUSTOM_QTY} tests. Total is
+                    calculated for {effectiveQty} tests.
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t border-border pt-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Total ({effectiveQty} tests)
+                  </p>
+                  <p className="text-lg font-bold text-foreground">
+                    {formattedCustomTotal}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleCustomPurchase}
+                  disabled={isBuyingCustom || !customPerTest}
+                  className="gap-2"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  {isBuyingCustom ? "Processing..." : "Buy Custom Quota"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
