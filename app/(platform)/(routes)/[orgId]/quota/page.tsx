@@ -976,7 +976,7 @@ export default function QuotaPage() {
 
               
 
-                    <ul className="mb-4 space-y-3">
+                    <ul className="space-y-3">
                       {pkg.features.map((feature: string, idx: number) => (
                         <li
                           key={idx}
@@ -1029,7 +1029,7 @@ export default function QuotaPage() {
                         <label className="text-xs font-medium text-muted-foreground">
                           Redeem voucher
                         </label>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col space-y-2">
                           <input
                             type="text"
                             value={voucherInputMap[pkg.id] || ""}
