@@ -989,7 +989,7 @@ export default function QuotaPage() {
                     </ul>
 
                     {/* Quantity input */}
-                    <div className="mb-4">
+                    <div className="">
                       <label className="text-xs font-medium text-muted-foreground">
                         Quantity (packages)
                       </label>
@@ -1025,11 +1025,11 @@ export default function QuotaPage() {
 
                     {/* Voucher input (only for IDR) */}
                     {currency === "IDR" && (
-                      <div className="mb-4 space-y-2">
+                      <div className=" space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">
                           Redeem voucher
                         </label>
-                        <div className="flex md:flex-row flex-col gap-2">
+                        <div className="flex flex-col">
                           <input
                             type="text"
                             value={voucherInputMap[pkg.id] || ""}
