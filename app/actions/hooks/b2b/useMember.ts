@@ -6,6 +6,22 @@ import { api } from "@/lib/api";
 
 /* ============ ZOD SCHEMAS ============ */
 
+const defaultQuotas = {
+  IELTS: {
+    Reading: 0,
+    Listening: 0,
+    Writing: 0,
+    Speaking: 0,
+    Complete: 0,
+  },
+  TOEFL: {
+    Reading: 0,
+    Listening: 0,
+    "Structure & Written Expression": 0,
+    Complete: 0,
+  },
+};
+
 const quotaSchema = z.object({
   IELTS: z.object({
     Reading: z.number(),
@@ -34,9 +50,9 @@ const memberRowSchema = z.object({
     name: z.string().nullable(),
     email: z.string().nullable(),
   }),
-  quotas: quotaSchema,
+  // ⬇⬇⬇ ini yang diubah
+  quotas: quotaSchema.default(defaultQuotas), // kalau undefined → pakai defaultQuotas
 });
-
 const memberListSchema = z.object({
   data: z.array(memberRowSchema),
   total: z.number(),
@@ -49,8 +65,10 @@ export type MemberListResponse = z.infer<typeof memberListSchema>;
 
 export const memberKeys = {
   list: (orgId: number) => ["b2b", "members", orgId] as const,
-  listWithParams: (orgId: number, params: { page: number; pageSize: number; q?: string }) =>
-    ["b2b", "members", orgId, params] as const,
+  listWithParams: (
+    orgId: number,
+    params: { page: number; pageSize: number; q?: string }
+  ) => ["b2b", "members", orgId, params] as const,
 };
 
 /* ============ LIST MEMBERS ============ */
@@ -84,14 +102,25 @@ export function useMembers(orgId: number, params: UseMembersParams) {
 
 /* ============ ADD MEMBER ============ */
 
-const addMemberInputSchema = z.object({
+const quotaItemSchema = z.object({
+  test_name: z.enum(["IELTS", "TOEFL"]),
+  test_type_id: z.number().int().positive(),
+  quota: z.number().int().positive(),
+});
+
+export const addMemberInputSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   username: z.string().min(1),
   password: z.string().optional().nullable(),
-  test_name: z.enum(["IELTS", "TOEFL"]),
-  test_type_id: z.number().int().positive(),
-  quota: z.number().int().positive(),
+
+  // optional – kalau belum dipakai gapapa
+  nationality: z.string().optional().nullable(),
+  country_origin: z.string().optional().nullable(),
+  first_language: z.string().optional().nullable(),
+  currency: z.string().optional().nullable(),
+
+  quotas: z.array(quotaItemSchema).min(1, "Minimal 1 quota skill"),
 });
 
 export type AddMemberInput = z.infer<typeof addMemberInputSchema>;
@@ -125,7 +154,7 @@ export function useUpdateMemberStatus(orgId: number) {
     mutationFn: async (payload: UpdateStatusInput) => {
       const res = await api.patch(
         `/v1/b2b/orgs/${orgId}/members/${payload.memberId}/status`,
-        { status: payload.status },
+        { status: payload.status }
       );
       return res.data;
     },

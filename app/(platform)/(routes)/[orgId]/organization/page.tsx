@@ -23,11 +23,9 @@ import { orgFormSchema, type OrgFormValues } from "@/lib/zod-b2b";
 import { UsePostUploader } from "@/app/actions/hooks/b2b/useUploader";
 import { useParams } from "next/navigation";
 
-
-
 export default function OrganizationPage() {
-    const params = useParams<{ orgId: string }>();
-    const orgId = params.orgId
+  const params = useParams<{ orgId: string }>();
+  const orgId = params.orgId;
 
   /* ---------------- RHF + ZOD ---------------- */
 
@@ -137,7 +135,6 @@ export default function OrganizationPage() {
             </h2>
 
             <div className="space-y-6">
-              {/* NAME */}
               <FormField
                 name="name"
                 render={({ field }) => (
@@ -148,12 +145,16 @@ export default function OrganizationPage() {
                         {...field}
                         disabled={loadingOrg || savingOrg}
                         placeholder="Organization Name"
+                        maxLength={50} // 🔹 batas panjang nama organisasi
                         onChange={(e) => {
                           field.onChange(e.target.value);
                           trigger("name");
                         }}
                       />
                     </FormControl>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Maximum 50 characters.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

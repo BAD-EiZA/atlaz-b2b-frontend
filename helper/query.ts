@@ -69,12 +69,11 @@ export function buildExamPackages(data: OrgPackagesResponse): UiExamPackages {
 
     const uiPackages: UiPackage[] = group.packages.map((pkg) => ({
       id: pkg.id,
-      name: `${pkg.attempt_quota} Quota`,
+      name: `${pkg.attempt_quota} Quota IELTS ${label} Tests`,
       price: Number(pkg.priceInt ?? pkg.price ?? 0),
       quotaAmount: pkg.attempt_quota,
       features: [
         `${pkg.attempt_quota} ${label} tests`,
-        "No expiry",
         "Instant access",
       ],
     }));
@@ -94,12 +93,11 @@ export function buildExamPackages(data: OrgPackagesResponse): UiExamPackages {
 
     const uiPackages: UiPackage[] = group.packages.map((pkg) => ({
       id: pkg.id,
-      name: `${pkg.attempt_quota} Tests`,
+      name: `${pkg.attempt_quota} Quota TOEFL ${label} Tests`,
       price: Number(pkg.priceInt ?? pkg.price ?? 0),
       quotaAmount: pkg.attempt_quota,
       features: [
         `${pkg.attempt_quota} ${label} tests`,
-        "No expiry",
         "Instant access",
       ],
     }));

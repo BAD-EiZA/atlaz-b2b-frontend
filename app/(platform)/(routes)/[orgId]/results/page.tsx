@@ -1,18 +1,18 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Download,
   Search,
   ArrowLeft,
   X,
   ChevronDown,
-  Clock,
-  Clock1,
   ClockIcon,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -23,6 +23,9 @@ import {
   useStudentHistory,
 } from "@/app/actions/hooks/b2b/useResults";
 import { useParams } from "next/navigation";
+
+// ✨ optional: biar rapi
+type SortField = "recentlyDone" | "createdAt" | "name";
 
 export default function ResultsPage() {
   const params = useParams<{ orgId: string }>();
@@ -37,6 +40,10 @@ export default function ResultsPage() {
   }>({ open: false, studentId: null, studentName: "" });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // ===== SORT STATE (FE only) =====
+  const [sortBy, setSortBy] = useState<SortField>("recentlyDone");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   // ---- FETCH RESULTS ----
   const {
@@ -56,6 +63,18 @@ export default function ResultsPage() {
   const formatScore = (score: number | null | undefined) =>
     score !== null && score !== undefined ? score : "-";
 
+  const formatDateTime = (value: string | Date | null | undefined) => {
+    if (!value) return "-";
+    return new Date(value).toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
   const renderTestDetailsTable = (testDetails: any[], isIelts: boolean) => {
     return (
       <div className="overflow-x-auto">
@@ -67,7 +86,7 @@ export default function ResultsPage() {
               </th>
               {isIelts ? (
                 <>
-                <th className="text-left py-3 px-4 font-semibold text-foreground">
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
                     Exam Date
                   </th>
                   <th className="text-left py-3 px-4 font-semibold text-foreground">
@@ -117,14 +136,7 @@ export default function ResultsPage() {
                   {detail.type}
                 </td>
                 <td className="py-3 px-4 text-foreground capitalize font-medium">
-                  {new Date(detail.date).toLocaleString("id-ID", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })}
+                  {formatDateTime(detail.date)}
                 </td>
                 {isIelts ? (
                   <>
@@ -179,29 +191,90 @@ export default function ResultsPage() {
     enabled: historyModal.open,
   });
 
+  // ===== SORTING LOGIC (FE) =====
+  const sortedResults = useMemo(() => {
+    const arr = (results || []) as any[];
+    if (!arr.length) return arr;
+
+    const clone = [...arr];
+
+    clone.sort((a, b) => {
+      // 🔤 Sort by name (studentName)
+      if (sortBy === "name") {
+        const aName = (a.studentName || "").toLowerCase();
+        const bName = (b.studentName || "").toLowerCase();
+
+        if (aName < bName) return sortDir === "asc" ? -1 : 1;
+        if (aName > bName) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      }
+
+      // 🕒 Sort by date fields
+      const field = sortBy as "recentlyDone" | "createdAt";
+      const aVal = a[field] ? new Date(a[field]).getTime() : 0;
+      const bVal = b[field] ? new Date(b[field]).getTime() : 0;
+
+      if (sortDir === "desc") {
+        return bVal - aVal;
+      }
+      return aVal - bVal;
+    });
+
+    return clone;
+  }, [results, sortBy, sortDir]);
+
+  const handleHeaderSort = (column: SortField) => {
+    if (sortBy === column) {
+      // toggle direction
+      setSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
+    } else {
+      // switch column, default:
+      // - Name → asc (A-Z)
+      // - Date fields → desc (newest first)
+      setSortBy(column);
+      if (column === "name") {
+        setSortDir("asc");
+      } else {
+        setSortDir("desc");
+      }
+    }
+  };
+
+  const renderSortIcon = (column: SortField) => {
+    if (sortBy !== column) {
+      return (
+        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground ml-1" />
+      );
+    }
+
+    return sortDir === "desc" ? (
+      <ArrowDown className="h-3.5 w-3.5 ml-1" />
+    ) : (
+      <ArrowUp className="h-3.5 w-3.5 ml-1" />
+    );
+  };
+
+  const overallColSpan = examType === "ielts" ? 9 : 8;
+
   return (
     <div className="p-8">
-      <div className="flex  md:flex-row flex-col items-start md:items-center justify-between mb-4">
+      <div className="flex md:flex-row flex-col items-start md:items-center justify-between mb-4">
         <div className="flex-1">
           <Breadcrumb items={[{ label: "Test Results" }]} />
-          <h1 className=" text-2xl md:text-3xl font-bold text-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
             Test Results & Reports
           </h1>
           <p className="mt-2 text-muted-foreground">
             View and manage student test results and certificates
           </p>
         </div>
-        <div className="flex  gap-2">
+        <div className="flex gap-2">
           <Link href={`/${orgId}/dashboard`}>
             <Button variant="outline" className="gap-2 bg-transparent">
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
             </Button>
           </Link>
-          {/* <Button className="gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
-          </Button> */}
         </div>
       </div>
 
@@ -256,7 +329,15 @@ export default function ResultsPage() {
               <tr className="border-b border-border bg-muted">
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground w-8" />
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                  Name
+                  {/* 🔤 Sort by Name */}
+                  <button
+                    type="button"
+                    onClick={() => handleHeaderSort("name")}
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                  >
+                    <span>Name</span>
+                    {renderSortIcon("name")}
+                  </button>
                 </th>
                 {examType === "ielts" ? (
                   <>
@@ -292,13 +373,35 @@ export default function ResultsPage() {
                     </th>
                   </>
                 )}
+                {/* HEADER SORT: RECENTLY DONE */}
+                <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => handleHeaderSort("recentlyDone")}
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                  >
+                    <span>Recently Done</span>
+                    {renderSortIcon("recentlyDone")}
+                  </button>
+                </th>
+                {/* HEADER SORT: CREATED */}
+                <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => handleHeaderSort("createdAt")}
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                  >
+                    <span>Account Created</span>
+                    {renderSortIcon("createdAt")}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
                   <td
-                    colSpan={examType === "ielts" ? 8 : 7}
+                    colSpan={overallColSpan}
                     className="py-6 px-6 text-center text-muted-foreground"
                   >
                     Loading results...
@@ -307,7 +410,7 @@ export default function ResultsPage() {
               )}
 
               {!loading &&
-                results.map((result: any) => (
+                sortedResults.map((result: any) => (
                   <Fragment key={result.id}>
                     <tr className="border-b border-border hover:bg-muted transition-colors cursor-pointer">
                       <td className="py-4 px-6">
@@ -363,18 +466,21 @@ export default function ResultsPage() {
                           </td>
                         </>
                       )}
+                      <td className="py-4 px-6 text-sm text-foreground">
+                        {formatDateTime(result.recentlyDone)}
+                      </td>
+                      <td className="py-4 px-6 text-sm text-foreground">
+                        {formatDateTime(result.createdAt)}
+                      </td>
                     </tr>
 
                     {expandedResultId === result.id && (
                       <tr className="border-b border-border bg-muted/30">
-                        <td
-                          colSpan={examType === "ielts" ? 8 : 7}
-                          className="py-6 px-6"
-                        >
+                        <td colSpan={overallColSpan} className="py-6 px-6">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <h3 className="font-semibold text-foreground">
-                              Latest Test Attempts
+                                Latest Test Attempts
                               </h3>
                               <Button
                                 onClick={() =>
@@ -400,10 +506,10 @@ export default function ResultsPage() {
                   </Fragment>
                 ))}
 
-              {!loading && results.length === 0 && (
+              {!loading && sortedResults.length === 0 && (
                 <tr>
                   <td
-                    colSpan={examType === "ielts" ? 8 : 7}
+                    colSpan={overallColSpan}
                     className="py-6 px-6 text-center text-muted-foreground"
                   >
                     No test results found.
@@ -466,7 +572,7 @@ export default function ResultsPage() {
 
                   {Object.keys(historyData.groups).length > 0 && (
                     <Tabs
-                      defaultValue={Object.keys(historyData.groups)[0]} // tab pertama default
+                      defaultValue={Object.keys(historyData.groups)[0]}
                       className="w-full"
                     >
                       <TabsList className="mb-4">
@@ -542,17 +648,7 @@ export default function ResultsPage() {
                                       className="border-b border-border"
                                     >
                                       <td className="py-3 px-4 text-foreground">
-                                        {new Date(att.date).toLocaleString(
-                                          "id-ID",
-                                          {
-                                            day: "2-digit",
-                                            month: "2-digit",
-                                            year: "numeric",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                            hour12: true,
-                                          }
-                                        )}
+                                        {formatDateTime(att.date)}
                                       </td>
                                       {examType === "ielts" ? (
                                         <>

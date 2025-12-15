@@ -5,16 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Plus,
-  Upload,
-  Search,
-  Mail,
-  Trash2,
-  Edit,
-  ArrowLeft,
-  Gift,
-} from "lucide-react";
+import { Plus, Upload, Search, ArrowLeft, Gift, Info } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Pagination } from "@/components/pagination";
 import { MemberRow, useMembers } from "@/app/actions/hooks/b2b/useMember";
@@ -22,6 +13,12 @@ import { useOrgQuotaSummary } from "@/app/actions/hooks/b2b/useOrg";
 import { AddStudentForm } from "@/components/modal/addStudentModal";
 import { QuotaAllocationModal } from "@/components/modal/quotaAllocationModal";
 import { BulkImportStudentsModal } from "@/components/modal/bulkImportStudentModal";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type ExamAvailableQuota = {
   IELTS: {
@@ -117,11 +114,6 @@ export default function StudentsPage() {
 
   const members = membersList?.data ?? [];
 
-  const handleDelete = (id: number) => {
-    // belum ada endpoint delete member → sementara tampilkan alert
-    alert("Delete member belum diimplementasikan.");
-  };
-
   const handleAddStudentSuccess = () => {
     setShowAddModal(false);
   };
@@ -134,234 +126,268 @@ export default function StudentsPage() {
     });
 
   return (
-    <div className="p-8">
-      <div className="flex flex-col items-start md:flex-row md:items-center justify-between mb-8">
-        <div className="flex-1">
-          <Breadcrumb items={[{ label: "Students" }]} />
-          <h1 className="text-xl md:text-3xl font-bold text-foreground">
-            Student Management
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Register and manage student accounts and test quotas
-          </p>
-        </div>
-        <div className="flex md:flex-row flex-col space-y-1 gap-2">
-          <Link href={`/${orgId}/dashboard`}>
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+    <TooltipProvider>
+      <div className="p-8">
+        {/* HEADER */}
+        <div className="flex flex-col items-start md:flex-row md:items-center justify-between mb-8">
+          <div className="flex-1">
+            <Breadcrumb items={[{ label: "Students" }]} />
+            <h1 className="text-xl md:text-3xl font-bold text-foreground">
+              Student Management
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Register and manage student accounts and test quotas
+            </p>
+          </div>
+          <div className="flex md:flex-row flex-col space-y-1 gap-2">
+            <Link href={`/${orgId}/dashboard`}>
+              <Button variant="outline" className="gap-2 bg-transparent">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              className="gap-2 bg-transparent"
+              onClick={() => setShowBulkModal(true)}
+            >
+              <Upload className="h-4 w-4" />
+              Bulk Import
             </Button>
-          </Link>
-          <Button
-            variant="outline"
-            className="gap-2 bg-transparent"
-            onClick={() => setShowBulkModal(true)}
-          >
-            <Upload className="h-4 w-4" />
-            Bulk Import
-          </Button>
-          <Button onClick={() => setShowAddModal(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Student
-          </Button>
+            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Student
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Search */}
-      <Card className="mb-6 p-4">
-        <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2">
-          <Search className="h-5 w-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search students by name or email..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="flex-1 bg-transparent text-foreground placeholder-muted-foreground focus:outline-none"
-          />
-        </div>
-      </Card>
+        {/* Search */}
+        <Card className="mb-6 p-4">
+          <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search students by name or email..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="flex-1 bg-transparent text-foreground placeholder-muted-foreground focus:outline-none"
+            />
+          </div>
+        </Card>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
-        {isError && (
-          <p className="p-4 text-sm text-red-500">
-            Failed to load students. Please try again.
-          </p>
-        )}
+        {/* Table */}
+        <Card className="overflow-hidden">
+          {isError && (
+            <p className="p-4 text-sm text-red-500">
+              Failed to load students. Please try again.
+            </p>
+          )}
 
-        {isLoading ? (
-          <p className="p-4 text-sm text-muted-foreground">Loading...</p>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border bg-muted">
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                      Name
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                      Email
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                      Status
-                    </th>
+          {isLoading ? (
+            <p className="p-4 text-sm text-muted-foreground">Loading...</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border bg-muted">
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        Name
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        Email
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        Status
+                      </th>
+                      {/* Quotas split: IELTS & TOEFL with tooltip */}
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        IELTS Quotas
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        TOEFL Quotas
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        Joined
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map((student) => {
+                      const ielts = student.quotas?.IELTS ?? {
+                        Listening: 0,
+                        Reading: 0,
+                        Writing: 0,
+                        Speaking: 0,
+                        Complete: 0,
+                      };
+                      const toefl = student.quotas?.TOEFL ?? {
+                        Listening: 0,
+                        Reading: 0,
+                        "Structure & Written Expression": 0,
+                        Complete: 0,
+                      };
 
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                      Quotas Allocated
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                      Joined
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.map((student) => {
-                    const allQuotasTotal =
-                      Object.values(student.quotas.IELTS).reduce(
+                      const ieltsTotal = Object.values(ielts).reduce(
                         (sum, v) => sum + v,
                         0
-                      ) +
-                      Object.values(student.quotas.TOEFL).reduce(
+                      );
+                      const toeflTotal = Object.values(toefl).reduce(
                         (sum, v) => sum + v,
                         0
                       );
 
-                    return (
-                      <tr
-                        key={student.id}
-                        className="border-b border-border hover:bg-muted transition-colors"
-                      >
-                        <td className="py-4 px-6 text-sm text-foreground font-medium">
-                          {student.users?.name ?? "-"}
-                        </td>
-                        <td className="py-4 px-6 text-sm text-foreground">
-                          {student.users?.email ?? "-"}
-                        </td>
-                        <td className="py-4 px-6 text-sm">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              student.status
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {student.status ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-sm text-foreground font-medium">
-                          {allQuotasTotal}
-                        </td>
-                        <td className="py-4 px-6 text-sm text-muted-foreground">
-                          {formatJoinDate(student.created_at)}
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedStudent(student);
-                                setShowQuotaModal(true);
-                              }}
-                              className="rounded-lg p-2 text-muted-foreground hover:bg-blue-100 transition-colors"
-                              title="Allocate Quota"
+                      return (
+                        <tr
+                          key={student.id}
+                          className="border-b border-border hover:bg-muted transition-colors"
+                        >
+                          <td className="py-4 px-6 text-sm text-foreground font-medium">
+                            {student.users?.name ?? "-"}
+                          </td>
+                          <td className="py-4 px-6 text-sm text-foreground">
+                            {student.users?.email ?? "-"}
+                          </td>
+                          <td className="py-4 px-6 text-sm">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                student.status
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
                             >
-                              <Gift className="h-4 w-4" />
-                            </button>
-                            {/* <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors">
-                              <Mail className="h-4 w-4" />
-                            </button>
-                            <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors">
-                              <Edit className="h-4 w-4" />
-                            </button> */}
-                            {/* <button
-                              onClick={() => handleDelete(student.id)}
-                              className="rounded-lg p-2 text-red-500 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button> */}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              totalItems={totalItems}
-              itemsPerPage={itemsPerPage}
-            />
-          </>
-        )}
-      </Card>
+                              {student.status ? "Active" : "Inactive"}
+                            </span>
+                          </td>
 
-      {/* Bulk Import section tetap dummy
-      <div className="mt-8">
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">
-            Bulk Import Students
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Import multiple students at once by uploading a CSV file with
-            columns: Name, Email, Student ID
-          </p>
-          <div className="border-2 border-dashed border-border rounded-lg p-8 flex flex-col items-center justify-center bg-muted/30 cursor-pointer hover:bg-muted transition-colors">
-            <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-sm font-medium text-foreground mb-1">
-              Click to upload or drag and drop
-            </p>
-            <p className="text-xs text-muted-foreground">
-              CSV files up to 10 MB
-            </p>
-          </div>
+                          {/* IELTS quotas with tooltip per skill */}
+                          <td className="py-4 px-6 text-sm text-foreground font-medium">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="inline-flex items-center gap-1 cursor-help rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                  <span>{ieltsTotal}</span>
+                                  <Info className="h-3 w-3" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="text-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">
+                                    IELTS Quota Breakdown
+                                  </p>
+                                  <p>Listening: {ielts.Listening}</p>
+                                  <p>Reading: {ielts.Reading}</p>
+                                  <p>Writing: {ielts.Writing}</p>
+                                  <p>Speaking: {ielts.Speaking}</p>
+                                  <p>Complete: {ielts.Complete}</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </td>
+
+                          {/* TOEFL quotas with tooltip per skill */}
+                          <td className="py-4 px-6 text-sm text-foreground font-medium">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="inline-flex items-center gap-1 cursor-help rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                  <span>{toeflTotal}</span>
+                                  <Info className="h-3 w-3" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="text-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">
+                                    TOEFL Quota Breakdown
+                                  </p>
+                                  <p>Listening: {toefl.Listening}</p>
+                                  <p>Reading: {toefl.Reading}</p>
+                                  <p>
+                                    Structure &amp; Written Expression:{" "}
+                                    {toefl["Structure & Written Expression"]}
+                                  </p>
+                                  <p>Complete: {toefl.Complete}</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </td>
+
+                          <td className="py-4 px-6 text-sm text-muted-foreground">
+                            {formatJoinDate(student.created_at)}
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedStudent(student);
+                                  setShowQuotaModal(true);
+                                }}
+                                className="rounded-lg p-2 text-muted-foreground hover:bg-blue-100 transition-colors"
+                                title="Allocate Quota"
+                              >
+                                <Gift className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+              />
+            </>
+          )}
         </Card>
-      </div> */}
-      {showBulkModal && (
-        <BulkImportStudentsModal
-          orgId={orgId}
-          onClose={() => setShowBulkModal(false)}
-          onSuccess={() => {
-            // refresh daftar members setelah import
-            setCurrentPage(1);
-            // kalau pakai react-query, invalidate query "members"
-            // tapi di sini cukup rely ke useMembers dengan dependen currentPage/searchTerm
-          }}
-        />
-      )}
-      {/* Add Student Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">
-              Add New Student
-            </h2>
-            <AddStudentForm
-              orgId={orgId}
-              onClose={() => setShowAddModal(false)}
-              onSuccess={handleAddStudentSuccess}
-            />
-          </Card>
-        </div>
-      )}
 
-      {/* Quota Allocation Modal */}
-      {showQuotaModal && selectedStudent && (
-        <QuotaAllocationModal
-          orgId={orgId}
-          student={selectedStudent}
-          availableQuotas={availableQuotas}
-          onClose={() => setShowQuotaModal(false)}
-        />
-      )}
-    </div>
+        {/* Bulk Import Modal */}
+        {showBulkModal && (
+          <BulkImportStudentsModal
+            orgId={orgId}
+            onClose={() => setShowBulkModal(false)}
+            onSuccess={() => {
+              setCurrentPage(1);
+            }}
+          />
+        )}
+
+        {/* Add Student Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">
+                Add New Student
+              </h2>
+              <AddStudentForm
+                orgId={orgId}
+                availableQuotas={availableQuotas}
+                onClose={() => setShowAddModal(false)}
+                onSuccess={handleAddStudentSuccess}
+              />
+            </Card>
+          </div>
+        )}
+
+        {/* Quota Allocation Modal */}
+        {showQuotaModal && selectedStudent && (
+          <QuotaAllocationModal
+            orgId={orgId}
+            student={selectedStudent}
+            availableQuotas={availableQuotas}
+            onClose={() => setShowQuotaModal(false)}
+          />
+        )}
+      </div>
+    </TooltipProvider>
   );
 }

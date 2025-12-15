@@ -27,8 +27,6 @@ import {
   BarChart,
   CartesianGrid,
   LabelList,
-  Line,
-  LineChart,
   PolarAngleAxis,
   PolarGrid,
   Radar,
@@ -87,6 +85,7 @@ const quotaChartConfig = {
     color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
+
 // 3 & 4. Combined IELTS + TOEFL skill averages (horizontal mixed bar)
 const skillCombinedConfig = {
   avgScore: {
@@ -253,8 +252,7 @@ function QuotaStackedBarChart({ data }: { data: QuotaByExamTypePoint[] }) {
   );
 }
 
-// 2. Monthly tests (line chart – IELTS vs TOEFL)
-// 2. Monthly tests (line chart with labels – total tests)
+// 2. Monthly tests (bar chart – total tests)
 const monthlyTestsConfig = {
   total: {
     label: "Total tests",
@@ -264,7 +262,7 @@ const monthlyTestsConfig = {
 
 function MonthlyTestsAreaChart({ data }: { data: MonthlyTestsPoint[] }) {
   const chartData = (data ?? []).map((item) => ({
-    month: item.month, // already formatted from backend
+    month: item.month, // sudah diformat dari backend
     total: (item.ielts ?? 0) + (item.toefl ?? 0),
   }));
 
@@ -281,57 +279,36 @@ function MonthlyTestsAreaChart({ data }: { data: MonthlyTestsPoint[] }) {
           config={monthlyTestsConfig}
           className="w-full max-w-full"
         >
-          <LineChart
-            accessibilityLayer
-            data={chartData}
-            margin={{
-              top: 20,
-              left: 12,
-              right: 12,
-            }}
-          >
+          <BarChart accessibilityLayer data={chartData}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="month"
               tickLine={false}
+              tickMargin={10}
               axisLine={false}
-              tickMargin={8}
+              tickFormatter={(value) => String(value).slice(0, 3)}
             />
             <ChartTooltip
               cursor={false}
-              content={<ChartTooltipContent indicator="line" />}
+              content={<ChartTooltipContent hideLabel />}
             />
-            <Line
+            <Bar
               dataKey="total"
-              type="natural"
-              stroke="var(--color-total)"
-              strokeWidth={2}
-              dot={{
-                fill: "var(--color-total)",
-              }}
-              activeDot={{
-                r: 6,
-              }}
-            >
-              <LabelList
-                position="top"
-                offset={12}
-                className="fill-foreground"
-                fontSize={12}
-              />
-            </Line>
-          </LineChart>
+              fill="var(--color-total)"
+              radius={8}
+            />
+          </BarChart>
         </ChartContainer>
       </CardContent>
       <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
-        <p>Each point shows how many tests were completed in that month.</p>
+        <p>Showing total completed tests per month.</p>
+        <p>Includes all IELTS and TOEFL ITP tests in the selected period.</p>
       </CardFooter>
     </Card>
   );
 }
 
-// 3. IELTS skill averages (bar chart)
-// 3. IELTS skill averages (horizontal bars, mixed-style)
+// 3. IELTS skill averages (horizontal bars)
 const ieltsSkillConfig = {
   avgScore: {
     label: "Average score",
@@ -339,7 +316,6 @@ const ieltsSkillConfig = {
 } satisfies ChartConfig;
 
 function IeltsSkillBarChart({ data }: { data: SkillAvgPoint[] }) {
-  // cycle through palette for prettier bars
   const palette = [
     "var(--chart-1)",
     "var(--chart-2)",
@@ -350,7 +326,6 @@ function IeltsSkillBarChart({ data }: { data: SkillAvgPoint[] }) {
   const chartData = (data ?? []).map((item, index) => ({
     skill: item.skill,
     avgScore: item.avgScore,
-    // Recharts will use this per-bar color
     fill: palette[index % palette.length],
   }));
 
@@ -382,7 +357,6 @@ function IeltsSkillBarChart({ data }: { data: SkillAvgPoint[] }) {
               cursor={false}
               content={<ChartTooltipContent hideLabel />}
             />
-            {/* each bar uses its own `fill` from data */}
             <Bar dataKey="avgScore" radius={5} />
           </BarChart>
         </ChartContainer>
@@ -394,8 +368,7 @@ function IeltsSkillBarChart({ data }: { data: SkillAvgPoint[] }) {
   );
 }
 
-// 4. TOEFL skill averages (bar chart)
-// 4. TOEFL skill averages (horizontal bars, mixed-style)
+// 4. TOEFL skill averages (horizontal bars)
 const toeflSkillConfig = {
   avgScore: {
     label: "Average score",
@@ -455,7 +428,7 @@ function ToeflSkillBarChart({ data }: { data: SkillAvgPoint[] }) {
   );
 }
 
-// 5. CEFR distribution (radar with dots)
+// 5. CEFR distribution (radar)
 const cefrConfig = {
   students: {
     label: "Students",
@@ -558,32 +531,6 @@ export default function DashboardPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  useEffect(() => {
-    if (!orgId || !user) {
-      // if store context is not available, redirect to check page
-      router.replace("/b2b/check");
-      return;
-    }
-
-    if (String(orgId) !== String(params.orgId)) {
-      // normalize URL orgId with store orgId
-      router.replace(`/${orgId}/dashboard`);
-    }
-  }, [orgId, user, params.orgId, router]);
-
-  const { data, isLoading, error } = useDashboard({
-    orgId,
-    testMode,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-  });
-
-  const summary: DashboardSummary | null = data ?? null;
-
-  if (!orgId || !user || String(orgId) !== String(params.orgId)) {
-    return null;
-  }
-
   const quickMenuItems = [
     {
       href: `/${orgId}/organization`,
@@ -611,6 +558,32 @@ export default function DashboardPage() {
     },
   ];
 
+  useEffect(() => {
+    if (!orgId || !user) {
+      // if store context is not available, redirect to check page
+      router.replace("/b2b/check");
+      return;
+    }
+
+    if (String(orgId) !== String(params.orgId)) {
+      // normalize URL orgId with store orgId
+      router.replace(`/${orgId}/dashboard`);
+    }
+  }, [orgId, user, params.orgId, router]);
+
+  const { data, isLoading, error } = useDashboard({
+    orgId,
+    testMode,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  });
+
+  const summary: DashboardSummary | null = data ?? null;
+
+  if (!orgId || !user || String(orgId) !== String(params.orgId)) {
+    return null;
+  }
+
   const handleClearDateRange = () => {
     setStartDate("");
     setEndDate("");
@@ -618,28 +591,16 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8">
-      {/* HEADER */}
-      <div className="mb-8 flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-foreground">Welcome back</h1>
-        <p className="text-muted-foreground">
-          Manage your prediction test organization.
-        </p>
+      {/* BACK TO ACADEMY (left) */}
+      <div className="mb-6">
+        <Link href="https://academy.hiatlaz.com/">
+          <Button variant="outline" className="gap-2 bg-transparent">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Academy
+          </Button>
+        </Link>
       </div>
-
-      {/* QUICK MENU */}
-      <div className="mb-8">
-        <div className="flex flex-col items-start md:flex-row md:justify-between md:items-center mb-2 ">
-          <h2 className=" text-lg font-semibold text-foreground">
-            Quick Menu
-          </h2>
-          <Link href={`https://academy.hiatlaz.com/`}>
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Academy
-            </Button>
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
           {quickMenuItems.map((item) => (
             <Link key={item.href} href={item.href} className="group">
               <Card className="h-full cursor-pointer p-6 transition-all hover:border-primary hover:shadow-lg">
@@ -658,7 +619,6 @@ export default function DashboardPage() {
             </Link>
           ))}
         </div>
-      </div>
 
       {/* STATUS */}
       {isLoading && (
@@ -741,18 +701,19 @@ export default function DashboardPage() {
       {/* CHARTS GRID */}
       {summary && (
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
-          {/* 1. Quota stacked bar */}
-          {/* <QuotaStackedBarChart data={summary.quotaByExamType ?? []} /> */}
           {/* 5. CEFR distribution */}
           <CefrRadarChart data={summary.cefrDistribution ?? []} />
 
           {/* 6. IELTS band distribution */}
           <IeltsBandRadarChart data={summary.ieltsBandDistribution ?? []} />
-          {/* 2. Tests per month */}
+
+          {/* Combined skill chart */}
           <SkillBarCombinedChart
             ielts={summary.ieltsSkillAvg ?? []}
             toefl={summary.toeflSkillAvg ?? []}
           />
+
+          {/* 2. Tests per month (bar chart) */}
           <MonthlyTestsAreaChart data={summary.monthlyTests ?? []} />
         </div>
       )}
