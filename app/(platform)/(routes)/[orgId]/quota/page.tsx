@@ -1029,7 +1029,7 @@ export default function QuotaPage() {
                         <label className="text-xs font-medium text-muted-foreground">
                           Redeem voucher
                         </label>
-                        <div className="flex gap-2">
+                        <div className="flex md:flex-row flex-col gap-2">
                           <input
                             type="text"
                             value={voucherInputMap[pkg.id] || ""}
