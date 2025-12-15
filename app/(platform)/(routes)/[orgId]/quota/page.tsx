@@ -828,7 +828,7 @@ export default function QuotaPage() {
             </div>
 
             {/* Button untuk custom quota */}
-            <div className="mt-4">
+            {/* <div className="mt-4">
               <Button
                 variant="outline"
                 size="sm"
@@ -838,7 +838,7 @@ export default function QuotaPage() {
                 <Zap className="h-4 w-4" />
                 Custom quota purchase (min {MIN_CUSTOM_QTY} tests)
               </Button>
-            </div>
+            </div> */}
           </>
         )}
       </Card>
