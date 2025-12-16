@@ -101,6 +101,25 @@ export function AddStudentForm({
     if (step > 1) setStep((s) => (s - 1) as 1 | 2 | 3);
   };
 
+  const allQuotaZero = (() => {
+    const i = availableQuotas?.IELTS;
+    const t = availableQuotas?.TOEFL;
+
+    const nums = [
+      i?.Listening,
+      i?.Reading,
+      i?.Writing,
+      i?.Speaking,
+      i?.Complete,
+      t?.Listening,
+      t?.["Structure & Written Expression"],
+      t?.Reading,
+      t?.Complete,
+    ].map((n) => Number(n ?? 0));
+
+    return nums.every((n) => n <= 0);
+  })();
+
   const onSubmit = async (values: AddStudentFormValues) => {
     // Susun quotas[] untuk backend
     type QuotaItem = {
@@ -108,6 +127,12 @@ export function AddStudentForm({
       test_type_id: number;
       quota: number;
     };
+
+    if (allQuotaZero) {
+      setQuotaError("Organization has no remaining quota to assign.");
+      setStep(3);
+      return;
+    }
 
     const quotas: QuotaItem[] = [];
     let quotaValidationError: string | null = null;
@@ -610,8 +635,7 @@ export function AddStudentForm({
     );
   };
 
-  const progressPercent =
-    ((step - 1) / (steps.length - 1 || 1)) * 100;
+  const progressPercent = ((step - 1) / (steps.length - 1 || 1)) * 100;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -685,11 +709,13 @@ export function AddStudentForm({
             </Button>
           )}
 
-          {step === 3 && (
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Adding..." : "Add Student"}
-            </Button>
-          )}
+          <Button type="submit" disabled={isPending || allQuotaZero}>
+            {allQuotaZero
+              ? "No Quota Remaining"
+              : isPending
+              ? "Adding..."
+              : "Add Student"}
+          </Button>
         </div>
       </div>
     </form>
