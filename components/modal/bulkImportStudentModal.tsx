@@ -188,7 +188,7 @@ function applyOrgQuotaValidation(
 
       if (total > avail) {
         issues.push(
-          `${q.test_name} ${bucket.skill} butuh ${total}, sisa ${avail}`
+          `\n ${q.test_name} ${bucket.skill} requested ${total}, remaining ${avail}`
         );
       }
     }

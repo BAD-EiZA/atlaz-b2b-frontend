@@ -24,7 +24,7 @@ import {
   useOrgPaymentHistory,
   useOrgQuotaSummary,
 } from "@/app/actions/hooks/b2b/useOrg";
-import { getExamQuotaPercent, getRemainingQuota } from "@/helper/query";
+import { getRemainingQuota } from "@/helper/query";
 import { useB2BOrgStore } from "@/store/useB2BOrgStore";
 import Loader from "@/components/common/Loader";
 import api from "@/lib/api";
@@ -66,7 +66,9 @@ const resolveTestTypeId = (
   testTypeLabel: string,
   pkg?: any
 ): number | null => {
-  const key = String(testTypeLabel || "").trim().toLowerCase();
+  const key = String(testTypeLabel || "")
+    .trim()
+    .toLowerCase();
 
   if (exam === "ielts") {
     if (key === "listening") return 1;
@@ -221,8 +223,6 @@ export default function QuotaPage() {
     selectedTestType
   );
 
-  const quotaPercent = getExamQuotaPercent(quotaSummary, selectedExam); // kalau dipakai di tempat lain
-
   const transactions = historyData?.transactions || [];
   const totalItems = historyData?.raw.total || 0;
   const pageSize = historyData?.raw.pageSize || transactionItemsPerPage;
@@ -308,7 +308,7 @@ export default function QuotaPage() {
           currency: "USD" as Currency,
         };
       }
-      // Saat USD belum ready, sementara fallback IDR (tapi kita sudah tunjukkan Loader di atas)
+      // Saat USD belum ready, sementara fallback IDR
       return {
         amount: pkg.price as number,
         currency: "IDR" as Currency,
@@ -326,9 +326,9 @@ export default function QuotaPage() {
 
   // ---- STATE: Quantity & Voucher per package ----
   const [qtyMap, setQtyMap] = useState<Record<number, number>>({});
-  const [voucherInputMap, setVoucherInputMap] = useState<Record<number, string>>(
-    {}
-  );
+  const [voucherInputMap, setVoucherInputMap] = useState<
+    Record<number, string>
+  >({});
   const [voucherResultMap, setVoucherResultMap] = useState<
     Record<number, VoucherApplyResponse | null>
   >({});
@@ -404,7 +404,6 @@ export default function QuotaPage() {
       );
 
       const result = res.data;
-
       const appliedCodes = result.applied.map((a) => a.code.toUpperCase());
 
       setVoucherResultMap((prev) => ({ ...prev, [pkg.id]: result }));
@@ -440,96 +439,6 @@ export default function QuotaPage() {
     }
   };
 
-  const handlePurchase = async (pkg: any) => {
-    // Pastikan user login
-    if (!user?.id) {
-      router.push("/login");
-      return;
-    }
-
-    // Pastikan org ada: pakai orgId dari URL atau dari store
-    const finalOrgId = org?.id ?? orgId;
-    if (!finalOrgId) {
-      alert("Organization tidak ditemukan. Silakan pilih organisasi dulu.");
-      return;
-    }
-
-    const qty = qtyMap[pkg.id] ?? 1;
-    const displayPrice = getDisplayPrice(pkg);
-    const baseUnitPrice = displayPrice.amount;
-    const baseAmount = baseUnitPrice * qty;
-
-    const voucherResult = voucherResultMap[pkg.id];
-    const totalPrice = voucherResult ? voucherResult.finalAmount : baseAmount;
-
-    const finalCurrency: Currency = displayPrice.currency;
-    const testCategory = selectedExam === "ielts" ? "IELTS" : "TOEFL";
-
-    const testTypeId = resolveTestTypeId(selectedExam, selectedTestType, pkg);
-    if (!testTypeId) {
-      alert("Test type ID not found for this package.");
-      return;
-    }
-
-    const appliedCodes = appliedVoucherCodesMap[pkg.id] || [];
-
-    try {
-      setBuyingId(pkg.id);
-
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers.Authorization = `Bearer ${token}`;
-
-      const payload = {
-        orgId: finalOrgId,
-        currency: finalCurrency,
-        amount: totalPrice,
-        user: {
-          id: user.id,
-          email: user.email,
-        },
-        price: {
-          id: pkg.id,
-          name: pkg.name,
-          title: pkg.name,
-          test_category: testCategory,
-          test_type_id: testTypeId,
-          attempt_quota: pkg.quotaAmount * qty,
-          exam: selectedExam,
-          test_type: selectedTestType,
-          features: pkg.features,
-          popular: pkg.popular ?? false,
-          vouchers: appliedCodes, // kirim daftar kode voucher ke backend
-        },
-      };
-
-      const res = await axios.post(
-        `https://api-test.hiatlaz.com/api/v1/payment_b2b/payment/create-invoice`,
-        payload,
-        { headers }
-      );
-
-      const url = res?.data?.data?.invoice_url;
-      if (url) {
-        window.location.href = url;
-      } else {
-        alert("Gagal membuat invoice. Silakan coba lagi.");
-      }
-    } catch (err: any) {
-      console.error("B2B payment error:", err);
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "Failed to create invoice.";
-      alert(msg);
-    } finally {
-      setBuyingId(null);
-    }
-  };
-
   const examLabel =
     currentExam?.name ?? (selectedExam === "ielts" ? "IELTS" : "TOEFL");
 
@@ -550,9 +459,7 @@ export default function QuotaPage() {
   };
 
   const handlePrevPackages = () => {
-    setCurrentPackageIndex((prev) =>
-      Math.max(prev - MAX_VISIBLE_PACKAGES, 0)
-    );
+    setCurrentPackageIndex((prev) => Math.max(prev - MAX_VISIBLE_PACKAGES, 0));
   };
 
   // --- Loader condition & messages ---
@@ -625,6 +532,141 @@ export default function QuotaPage() {
     setIsCustomModalOpen(true);
   };
 
+  // ---------- PAYMENT TAB + REFRESH MODAL ----------
+  const [isPaymentInfoOpen, setIsPaymentInfoOpen] = useState(false);
+  const [lastInvoiceUrl, setLastInvoiceUrl] = useState<string | null>(null);
+
+  const openPaymentInNewTab = (url: string, preOpenedTab: Window | null) => {
+    try {
+      if (preOpenedTab && !preOpenedTab.closed) {
+        preOpenedTab.location.href = url;
+        preOpenedTab.focus();
+        return true;
+      }
+      const w = window.open(url, "_blank", "noopener,noreferrer");
+      if (w) {
+        w.focus();
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleRefreshQuota = () => {
+    setIsPaymentInfoOpen(false);
+    window.location.reload();
+  };
+
+  const handlePurchase = async (pkg: any) => {
+    // Pastikan user login
+    if (!user?.id) {
+      router.push("/login");
+      return;
+    }
+
+    // Pastikan org ada: pakai orgId dari URL atau dari store
+    const finalOrgId = org?.id ?? orgId;
+    if (!finalOrgId) {
+      alert("Organization tidak ditemukan. Silakan pilih organisasi dulu.");
+      return;
+    }
+
+    const qty = qtyMap[pkg.id] ?? 1;
+    const displayPrice = getDisplayPrice(pkg);
+    const baseUnitPrice = displayPrice.amount;
+    const baseAmount = baseUnitPrice * qty;
+
+    const voucherResult = voucherResultMap[pkg.id];
+    const totalPrice = voucherResult ? voucherResult.finalAmount : baseAmount;
+
+    const finalCurrency: Currency = displayPrice.currency;
+    const testCategory = selectedExam === "ielts" ? "IELTS" : "TOEFL";
+
+    const testTypeId = resolveTestTypeId(selectedExam, selectedTestType, pkg);
+    if (!testTypeId) {
+      alert("Test type ID not found for this package.");
+      return;
+    }
+
+    const appliedCodes = appliedVoucherCodesMap[pkg.id] || [];
+
+    // ✅ pre-open tab (reduce popup blocker)
+    const paymentTab =
+      typeof window !== "undefined"
+        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+        : null;
+
+    try {
+      setBuyingId(pkg.id);
+
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const payload = {
+        orgId: finalOrgId,
+        currency: finalCurrency,
+        amount: totalPrice,
+        user: {
+          id: user.id,
+          email: user.email,
+        },
+        price: {
+          id: pkg.id,
+          name: pkg.name,
+          title: pkg.name,
+          test_category: testCategory,
+          test_type_id: testTypeId,
+          attempt_quota: pkg.quotaAmount * qty,
+          exam: selectedExam,
+          test_type: selectedTestType,
+          features: pkg.features,
+          popular: pkg.popular ?? false,
+          vouchers: appliedCodes,
+        },
+      };
+
+      const res = await axios.post(
+        `https://api-test.hiatlaz.com/api/v1/payment_b2b/payment/create-invoice`,
+        payload,
+        { headers }
+      );
+
+      const url = res?.data?.data?.invoice_url;
+
+      if (url) {
+        const opened = openPaymentInNewTab(url, paymentTab);
+
+        // fallback kalau popup ke-block
+        if (!opened) {
+          window.location.href = url;
+          return;
+        }
+
+        setLastInvoiceUrl(url);
+        setIsPaymentInfoOpen(true);
+      } else {
+        paymentTab?.close?.();
+        alert("Gagal membuat invoice. Silakan coba lagi.");
+      }
+    } catch (err: any) {
+      paymentTab?.close?.();
+      console.error("B2B payment error:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to create invoice.";
+      alert(msg);
+    } finally {
+      setBuyingId(null);
+    }
+  };
+
   const handleCustomPurchase = async () => {
     if (!user?.id) {
       router.push("/login");
@@ -660,6 +702,12 @@ export default function QuotaPage() {
       alert("Test type ID not found for custom quota.");
       return;
     }
+
+    // ✅ pre-open tab (reduce popup blocker)
+    const paymentTab =
+      typeof window !== "undefined"
+        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+        : null;
 
     try {
       setIsBuyingCustom(true);
@@ -701,11 +749,21 @@ export default function QuotaPage() {
 
       const url = res?.data?.data?.invoice_url;
       if (url) {
-        window.location.href = url;
+        const opened = openPaymentInNewTab(url, paymentTab);
+
+        if (!opened) {
+          window.location.href = url;
+          return;
+        }
+
+        setLastInvoiceUrl(url);
+        setIsPaymentInfoOpen(true);
       } else {
+        paymentTab?.close?.();
         alert("Gagal membuat invoice custom. Silakan coba lagi.");
       }
     } catch (err: any) {
+      paymentTab?.close?.();
       console.error("B2B custom payment error:", err);
       const msg =
         err?.response?.data?.message ||
@@ -926,7 +984,8 @@ export default function QuotaPage() {
                     : formatUSD(pricePerTest);
 
                 const totalDiscount =
-                  voucherResult?.totalDiscount && voucherResult.totalDiscount > 0
+                  voucherResult?.totalDiscount &&
+                  voucherResult.totalDiscount > 0
                     ? voucherResult.totalDiscount
                     : 0;
 
@@ -957,8 +1016,8 @@ export default function QuotaPage() {
                         {formattedTotal}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Total for{" "}
-                        <span className="font-semibold">{qty}x</span> package
+                        Total for <span className="font-semibold">{qty}x</span>{" "}
+                        package
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {formattedPerTest} per test
@@ -973,8 +1032,6 @@ export default function QuotaPage() {
                         </p>
                       )}
                     </div>
-
-              
 
                     <ul className="space-y-3">
                       {pkg.features.map((feature: string, idx: number) => (
@@ -1007,11 +1064,7 @@ export default function QuotaPage() {
                             appliedVoucherCodesMap[pkg.id] || [];
                           if (existingCodes.length) {
                             // re-apply voucher dengan quantity baru
-                            applyVoucherForPackage(
-                              pkg,
-                              newQty,
-                              existingCodes
-                            );
+                            applyVoucherForPackage(pkg, newQty, existingCodes);
                           } else {
                             setVoucherResultMap((prev) => ({
                               ...prev,
@@ -1047,8 +1100,9 @@ export default function QuotaPage() {
                             type="button"
                             size="sm"
                             onClick={() => {
-                              const newCode =
-                                (voucherInputMap[pkg.id] || "").trim();
+                              const newCode = (
+                                voucherInputMap[pkg.id] || ""
+                              ).trim();
                               if (!newCode) return;
 
                               const existing =
@@ -1273,6 +1327,67 @@ export default function QuotaPage() {
                   {isBuyingCustom ? "Processing..." : "Buy Custom Quota"}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYMENT INFO MODAL (after opening gateway in new tab) */}
+      {isPaymentInfoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md mx-4 p-6 relative">
+            <button
+              type="button"
+              onClick={() => setIsPaymentInfoOpen(false)}
+              className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                <AlertCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Payment opened in a new tab
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Please complete the payment in the new tab. After payment is
+                  successful, come back here and click{" "}
+                  <span className="font-semibold">Refresh</span> to update your
+                  latest quota.
+                </p>
+              </div>
+            </div>
+
+            {lastInvoiceUrl && (
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() =>
+                    window.open(lastInvoiceUrl, "_blank", "noopener,noreferrer")
+                  }
+                >
+                  Open payment page again
+                </Button>
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <Button className="flex-1 gap-2" onClick={handleRefreshQuota}>
+                <Zap className="h-4 w-4" />
+                Refresh quota
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setIsPaymentInfoOpen(false)}
+              >
+                Close
+              </Button>
             </div>
           </div>
         </div>
