@@ -5,17 +5,15 @@ import * as XLSX from "xlsx-js-style";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api"; // sesuaikan dengan axios instance-mu
+import { api } from "@/lib/api";
 import { AlertTriangle, Loader2, Upload } from "lucide-react";
 
-type RawRow = {
-  name?: string;
-  username?: string;
-  email?: string;
-  phone?: string | number;
-  category?: string;
-  type?: string;
-  quota?: number;
+type RawRow = Record<string, any>;
+
+type QuotaInput = {
+  test_name: "IELTS" | "TOEFL";
+  test_type_id: number;
+  quota: number;
 };
 
 type CreateMemberPayload = {
@@ -23,10 +21,13 @@ type CreateMemberPayload = {
   username: string;
   email: string;
   phone?: string;
-  test_name: "IELTS" | "TOEFL";
-  test_type_id: number;
-  quota: number;
-  currency?: string;
+
+  nationality?: string;
+  country_origin?: string;
+  first_language?: string;
+
+  quotas: QuotaInput[];
+  currency?: string; // optional (backend default IDR)
 };
 
 type Props = {
@@ -35,34 +36,71 @@ type Props = {
   onSuccess: () => void;
 };
 
-function mapCategoryToTestName(category: string): "IELTS" | "TOEFL" {
-  const c = category.trim().toUpperCase();
-  if (c.startsWith("IELTS")) return "IELTS";
-  if (c.startsWith("TOEFL")) return "TOEFL";
-  throw new Error(`Unknown category: ${category}`);
+function normalizeKey(key: string) {
+  return String(key)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
-function mapTypeToTestTypeId(testName: "IELTS" | "TOEFL", typeLabel: string) {
-  const t = typeLabel.trim().toLowerCase();
+function parseQuotaCell(v: any, fieldName: string) {
+  if (v === null || v === undefined || v === "") return 0;
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new Error(`${fieldName} harus angka`);
+  if (n < 0) throw new Error(`${fieldName} tidak boleh negatif`);
+  return Math.trunc(n);
+}
 
-  if (testName === "IELTS") {
-    if (t === "listening") return 1;
-    if (t === "reading") return 2;
-    if (t === "writing") return 3;
-    if (t === "speaking") return 4;
-    if (t === "complete") return 5;
-  } else {
+function buildQuotasFromExcel(rn: Record<string, any>): QuotaInput[] {
+  const mapping: Array<{
+    key: string;
+    test_name: "IELTS" | "TOEFL";
+    test_type_id: number;
+  }> = [
+    // IELTS
+    { key: "ielts_listening", test_name: "IELTS", test_type_id: 1 },
+    { key: "ielts_reading", test_name: "IELTS", test_type_id: 2 },
+    { key: "ielts_writing", test_name: "IELTS", test_type_id: 3 },
+    { key: "ielts_speaking", test_name: "IELTS", test_type_id: 4 },
+
     // TOEFL
-    if (t === "listening") return 1;
-    if (t.startsWith("structure")) return 2; // "Structure & Written Expression"
-    if (t === "reading") return 3;
-    if (t === "complete") return 4;
-  }
+    { key: "toefl_listening", test_name: "TOEFL", test_type_id: 1 },
+    { key: "toefl_structure", test_name: "TOEFL", test_type_id: 2 },
+    { key: "toefl_reading", test_name: "TOEFL", test_type_id: 3 },
+  ];
 
-  throw new Error(`Unknown type "${typeLabel}" for ${testName}`);
+  const quotas: QuotaInput[] = [];
+  for (const m of mapping) {
+    const q = parseQuotaCell(rn[m.key], m.key);
+    if (q > 0)
+      quotas.push({
+        test_name: m.test_name,
+        test_type_id: m.test_type_id,
+        quota: q,
+      });
+  }
+  return quotas;
 }
 
-export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) => {
+function quotaLabel(q: QuotaInput) {
+  const skill =
+    q.test_name === "IELTS"
+      ? ({ 1: "Listening", 2: "Reading", 3: "Writing", 4: "Speaking" } as any)[
+          q.test_type_id
+        ] ?? q.test_type_id
+      : ({ 1: "Listening", 2: "Structure", 3: "Reading" } as any)[
+          q.test_type_id
+        ] ?? q.test_type_id;
+
+  return `${q.test_name} ${skill}: ${q.quota}`;
+}
+
+export const BulkImportStudentsModal = ({
+  orgId,
+  onClose,
+  onSuccess,
+}: Props) => {
   const [rows, setRows] = useState<CreateMemberPayload[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,108 +120,104 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
       const data = e.target?.result;
       if (!data) return;
 
-      let workbook;
-      if (typeof data === "string") {
-        workbook = XLSX.read(data, { type: "binary" });
-      } else {
-        workbook = XLSX.read(data, { type: "array" });
-      }
+      const workbook =
+        typeof data === "string"
+          ? XLSX.read(data, { type: "binary" })
+          : XLSX.read(data, { type: "array" });
 
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const json: RawRow[] = XLSX.utils.sheet_to_json(worksheet);
+
+      const json: RawRow[] = XLSX.utils.sheet_to_json(worksheet, {
+        defval: "",
+      });
 
       const mapped: CreateMemberPayload[] = [];
       const errorList: string[] = [];
 
       json.forEach((row, idx) => {
         try {
-          if (!row.name || !row.username || !row.email) {
+          const rn: Record<string, any> = {};
+          for (const [k, v] of Object.entries(row)) rn[normalizeKey(k)] = v;
+
+          const name = String(rn["name"] ?? "").trim();
+          const username = String(rn["username"] ?? "").trim();
+          const email = String(rn["email"] ?? "").trim();
+
+          // NOTE: kalau mau leading zero aman, pastikan kolom phone di Excel format "Text"
+          const phone =
+            rn["phone"] !== "" ? String(rn["phone"]).trim() : undefined;
+
+          if (!name || !username || !email) {
             throw new Error("name, username, email wajib diisi");
           }
-          if (!row.category || !row.type || row.quota == null) {
-            throw new Error("category, type, dan Quota wajib diisi");
-          }
 
-          const test_name = mapCategoryToTestName(String(row.category));
-          const test_type_id = mapTypeToTestTypeId(
-            test_name,
-            String(row.type)
-          );
-          const quota = Number(row.quota);
-
-          if (!Number.isFinite(quota) || quota <= 0) {
-            throw new Error("Quota harus > 0");
+          const quotas = buildQuotasFromExcel(rn);
+          if (!quotas.length) {
+            throw new Error(
+              "Minimal 1 kuota harus > 0 (isi kolom IELTS/TOEFL quota)"
+            );
           }
 
           mapped.push({
-            name: String(row.name).trim(),
-            username: String(row.username).trim(),
-            email: String(row.email).trim(),
-            phone: row.phone ? String(row.phone).trim() : undefined,
-            test_name,
-            test_type_id,
-            quota,
+            name,
+            username,
+            email,
+            phone,
+            nationality: rn["nationality"]
+              ? String(rn["nationality"]).trim()
+              : undefined,
+            country_origin: rn["country_origin"]
+              ? String(rn["country_origin"]).trim()
+              : undefined,
+            first_language: rn["first_language"]
+              ? String(rn["first_language"]).trim()
+              : undefined,
+            quotas,
             currency: "IDR",
           });
         } catch (err: any) {
-          errorList.push(`Row ${idx + 2}: ${err.message}`); // +2 karena header + index 0
+          errorList.push(`Row ${idx + 2}: ${err.message}`);
         }
       });
 
       setRows(mapped);
       setErrors(errorList);
-
-      if (!mapped.length) {
-        console.log("Tidak ada yang bisa di import")
-      }
     };
 
-    if (file.type.includes("csv") || file.type === "") {
-      reader.readAsText(file);
-    } else {
-      reader.readAsArrayBuffer(file);
-    }
+    if (file.type.includes("csv") || file.type === "") reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
   };
 
   const handleSubmit = async () => {
-    if (!rows.length) {
-      
-      return;
-    }
+    if (!rows.length) return;
 
     setIsSubmitting(true);
     try {
+      // ✅ match CreateMemberDto backend kamu
       const payload = {
         users: rows.map((r) => ({
           name: r.name,
           username: r.username,
           email: r.email,
           phone: r.phone,
-          test_name: r.test_name,
-          test_type_id: r.test_type_id,
-          quota: r.quota,
+          nationality: r.nationality,
+          country_origin: r.country_origin,
+          first_language: r.first_language,
+          quotas: r.quotas, // ✅ INI YANG PENTING
           currency: r.currency ?? "IDR",
         })),
       };
 
-      const res = await api.post(
-        `/v1/b2b/orgs/${orgId}/members/bulk`,
-        payload
-      );
+      const res = await api.post(`/v1/b2b/orgs/${orgId}/members/bulk`, payload);
 
-      const data = res.data;
-      if (data.failed > 0) {
-      
-      } else {
-       
-      }
+      // optional: handle res.data.success/failed
+      // console.log(res.data);
 
       onSuccess();
       onClose();
     } catch (err: any) {
       console.error(err);
-     
     } finally {
       setIsSubmitting(false);
     }
@@ -203,7 +237,11 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
 
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} />
+            <Input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileUpload}
+            />
             <Button variant="outline" asChild>
               <a
                 href="https://docs.google.com/spreadsheets/d/1unmMEgecHDtNknvWJZeThDNDvM3Oxa8Mo0akUoVPE-0/export?format=xlsx"
@@ -214,15 +252,22 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
               </a>
             </Button>
           </div>
+
           {fileName && (
             <p className="text-xs text-muted-foreground">
               File: <span className="font-medium">{fileName}</span>
             </p>
           )}
+
           <p className="text-xs text-muted-foreground">
-            Kolom yang dibaca: <b>name, username, email, phone, category, type, quota</b>.
+            Supported columns:{" "}
+            <b>
+              name, username, email, phone, nationality, country_origin,
+              first_language, ielts_listening, ielts_reading, ielts_writing,
+              ielts_speaking, toefl_listening, toefl_structure, toefl_reading
+            </b>
             <br />
-            <b>category</b> = IELTS / TOEFL, <b>type</b> = Listening / Reading / Writing / Speaking / Complete.
+            Enter <b>0</b> if you do not want to assign a quota for that skill.
           </p>
         </div>
 
@@ -230,7 +275,7 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
           <div className="border border-red-200 bg-red-50 rounded-md p-3 space-y-1">
             <div className="flex items-center gap-2 text-sm text-red-700">
               <AlertTriangle className="h-4 w-4" />
-              <span>Beberapa baris tidak valid:</span>
+              <span>Some rows are invalid:</span>
             </div>
             <ul className="text-xs text-red-700 list-disc list-inside max-h-32 overflow-y-auto">
               {errors.map((e, idx) => (
@@ -243,7 +288,7 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
         {rows.length > 0 && (
           <div className="border rounded-md p-3 max-h-60 overflow-auto text-xs">
             <p className="mb-2 text-muted-foreground">
-              Preview <b>{rows.length}</b> row yang akan di-import:
+              Preview <b>{rows.length}</b> rows to be imported:
             </p>
             <table className="w-full text-xs">
               <thead className="bg-muted">
@@ -251,10 +296,7 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
                   <th className="text-left py-1 px-2">Name</th>
                   <th className="text-left py-1 px-2">Email</th>
                   <th className="text-left py-1 px-2">Username</th>
-                  <th className="text-left py-1 px-2">Category</th>
-                  <th className="text-left py-1 px-2">Type</th>
-                  <th className="text-left py-1 px-2">Quota</th>
-                  <th className="text-left py-1 px-2">Phone</th>
+                  <th className="text-left py-1 px-2">Quotas</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,10 +305,11 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
                     <td className="py-1 px-2">{r.name}</td>
                     <td className="py-1 px-2">{r.email}</td>
                     <td className="py-1 px-2">{r.username}</td>
-                    <td className="py-1 px-2">{r.test_name}</td>
-                    <td className="py-1 px-2">{r.test_type_id}</td>
-                    <td className="py-1 px-2">{r.quota}</td>
-                    <td className="py-1 px-2">{r.phone}</td>
+                    <td className="py-1 px-2">
+                      {r.quotas.map((q, i) => (
+                        <div key={i}>{quotaLabel(q)}</div>
+                      ))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -276,7 +319,7 @@ export const BulkImportStudentsModal = ({ orgId, onClose, onSuccess }: Props) =>
 
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={onClose}>
-            Batal
+            Cancel
           </Button>
           <Button
             onClick={handleSubmit}
