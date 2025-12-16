@@ -19,22 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-type ExamAvailableQuota = {
-  IELTS: {
-    Reading: number;
-    Listening: number;
-    Writing: number;
-    Speaking: number;
-    Complete: number;
-  };
-  TOEFL: {
-    Reading: number;
-    Listening: number;
-    "Structure & Written Expression": number;
-    Complete: number;
-  };
-};
+import { ExamAvailableQuota } from "@/lib/types";
 
 export default function StudentsPage() {
   const params = useParams<{ orgId: string }>();
@@ -60,20 +45,21 @@ export default function StudentsPage() {
     q: searchTerm || undefined,
   });
 
-  const { data: quotaSummary } = useOrgQuotaSummary(orgId);
+  const { data: quotaSummary, isLoading: isQuotaLoading } =
+    useOrgQuotaSummary(orgId);
 
   const availableQuotas: ExamAvailableQuota = useMemo(() => {
     const base: ExamAvailableQuota = {
       IELTS: {
-        Reading: 0,
         Listening: 0,
+        Reading: 0,
         Writing: 0,
         Speaking: 0,
         Complete: 0,
       },
       TOEFL: {
-        Reading: 0,
         Listening: 0,
+        Reading: 0,
         "Structure & Written Expression": 0,
         Complete: 0,
       },
@@ -113,10 +99,6 @@ export default function StudentsPage() {
     : 1;
 
   const members = membersList?.data ?? [];
-
-  const handleAddStudentSuccess = () => {
-    setShowAddModal(false);
-  };
 
   const formatJoinDate = (iso: string) =>
     new Date(iso).toLocaleDateString("en-US", {
@@ -203,7 +185,6 @@ export default function StudentsPage() {
                       <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
                         Status
                       </th>
-                      {/* Quotas split: IELTS & TOEFL with tooltip */}
                       <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
                         IELTS Quotas
                       </th>
@@ -266,7 +247,6 @@ export default function StudentsPage() {
                             </span>
                           </td>
 
-                          {/* IELTS quotas with tooltip per skill */}
                           <td className="py-4 px-6 text-sm text-foreground font-medium">
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -290,7 +270,6 @@ export default function StudentsPage() {
                             </Tooltip>
                           </td>
 
-                          {/* TOEFL quotas with tooltip per skill */}
                           <td className="py-4 px-6 text-sm text-foreground font-medium">
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -319,6 +298,7 @@ export default function StudentsPage() {
                           <td className="py-4 px-6 text-sm text-muted-foreground">
                             {formatJoinDate(student.created_at)}
                           </td>
+
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-2">
                               <button
@@ -339,6 +319,7 @@ export default function StudentsPage() {
                   </tbody>
                 </table>
               </div>
+
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -350,18 +331,16 @@ export default function StudentsPage() {
           )}
         </Card>
 
-        {/* Bulk Import Modal */}
         {showBulkModal && (
           <BulkImportStudentsModal
             orgId={orgId}
+            availableQuotas={availableQuotas}
+            isQuotaLoading={isQuotaLoading}
             onClose={() => setShowBulkModal(false)}
-            onSuccess={() => {
-              setCurrentPage(1);
-            }}
+            onSuccess={() => setCurrentPage(1)}
           />
         )}
 
-        {/* Add Student Modal */}
         {showAddModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
@@ -372,13 +351,12 @@ export default function StudentsPage() {
                 orgId={orgId}
                 availableQuotas={availableQuotas}
                 onClose={() => setShowAddModal(false)}
-                onSuccess={handleAddStudentSuccess}
+                onSuccess={() => setShowAddModal(false)}
               />
             </Card>
           </div>
         )}
 
-        {/* Quota Allocation Modal */}
         {showQuotaModal && selectedStudent && (
           <QuotaAllocationModal
             orgId={orgId}

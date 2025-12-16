@@ -29,3 +29,35 @@ export type UiTransaction = {
   currency: string;
   status: string;
 };
+export type IELTSQuotaKey =
+  | "Listening"
+  | "Reading"
+  | "Writing"
+  | "Speaking"
+  | "Complete";
+
+export type TOEFLQuotaKey =
+  | "Listening"
+  | "Reading"
+  | "Structure & Written Expression"
+  | "Complete";
+
+export type ExamAvailableQuota = {
+  IELTS: Record<IELTSQuotaKey, number>;
+  TOEFL: Record<TOEFLQuotaKey, number>;
+};
+
+export const IELTS_KEYS: IELTSQuotaKey[] = [
+  "Listening",
+  "Reading",
+  "Writing",
+  "Speaking",
+  "Complete",
+];
+
+export const TOEFL_KEYS: TOEFLQuotaKey[] = [
+  "Listening",
+  "Reading",
+  "Structure & Written Expression",
+  "Complete",
+];
