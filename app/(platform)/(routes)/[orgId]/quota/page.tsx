@@ -143,9 +143,7 @@ export default function QuotaPage() {
         const ipJson = await ipRes.json();
         const ip = ipJson?.ip;
 
-        if (!ip) {
-          throw new Error("IP not found");
-        }
+        if (!ip) throw new Error("IP not found");
 
         const geoRes = await fetch(
           `https://api.country.is/${encodeURIComponent(ip)}`
@@ -240,9 +238,6 @@ export default function QuotaPage() {
   const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
 
   useEffect(() => {
-    // Hanya konversi kalau:
-    // - currency = USD (user di luar Indonesia)
-    // - dan ada currentPackages
     if (currency !== "USD") return;
     if (!currentPackages.length) return;
 
@@ -269,9 +264,7 @@ export default function QuotaPage() {
           signal: controller.signal,
         });
 
-        if (!res.ok) {
-          throw new Error("Failed to convert currency");
-        }
+        if (!res.ok) throw new Error("Failed to convert currency");
 
         const data = await res.json();
 
@@ -287,9 +280,7 @@ export default function QuotaPage() {
         if (controller.signal.aborted) return;
         console.error("Currency conversion error:", error);
       } finally {
-        if (!controller.signal.aborted) {
-          setIsConvertingCurrency(false);
-        }
+        if (!controller.signal.aborted) setIsConvertingCurrency(false);
       }
     };
 
@@ -303,22 +294,13 @@ export default function QuotaPage() {
     if (currency === "USD") {
       const usd = usdPriceMap[pkg.id];
       if (usd != null) {
-        return {
-          amount: usd,
-          currency: "USD" as Currency,
-        };
+        return { amount: usd, currency: "USD" as Currency };
       }
       // Saat USD belum ready, sementara fallback IDR
-      return {
-        amount: pkg.price as number,
-        currency: "IDR" as Currency,
-      };
+      return { amount: pkg.price as number, currency: "IDR" as Currency };
     }
 
-    return {
-      amount: pkg.price as number,
-      currency: "IDR" as Currency,
-    };
+    return { amount: pkg.price as number, currency: "IDR" as Currency };
   };
 
   // ---------- BUY handler (create invoice B2B) ----------
@@ -532,27 +514,9 @@ export default function QuotaPage() {
     setIsCustomModalOpen(true);
   };
 
-  // ---------- PAYMENT TAB + REFRESH MODAL ----------
+  // ---------- PAYMENT MODAL (OPTION 2) ----------
   const [isPaymentInfoOpen, setIsPaymentInfoOpen] = useState(false);
   const [lastInvoiceUrl, setLastInvoiceUrl] = useState<string | null>(null);
-
-  const openPaymentInNewTab = (url: string, preOpenedTab: Window | null) => {
-    try {
-      if (preOpenedTab && !preOpenedTab.closed) {
-        preOpenedTab.location.href = url;
-        preOpenedTab.focus();
-        return true;
-      }
-      const w = window.open(url, "_blank", "noopener,noreferrer");
-      if (w) {
-        w.focus();
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  };
 
   const handleRefreshQuota = () => {
     setIsPaymentInfoOpen(false);
@@ -560,13 +524,11 @@ export default function QuotaPage() {
   };
 
   const handlePurchase = async (pkg: any) => {
-    // Pastikan user login
     if (!user?.id) {
       router.push("/login");
       return;
     }
 
-    // Pastikan org ada: pakai orgId dari URL atau dari store
     const finalOrgId = org?.id ?? orgId;
     if (!finalOrgId) {
       alert("Organization tidak ditemukan. Silakan pilih organisasi dulu.");
@@ -591,12 +553,6 @@ export default function QuotaPage() {
     }
 
     const appliedCodes = appliedVoucherCodesMap[pkg.id] || [];
-
-    // ✅ pre-open tab (reduce popup blocker)
-    const paymentTab =
-      typeof window !== "undefined"
-        ? window.open("about:blank", "_blank", "noopener,noreferrer")
-        : null;
 
     try {
       setBuyingId(pkg.id);
@@ -639,22 +595,14 @@ export default function QuotaPage() {
       const url = res?.data?.data?.invoice_url;
 
       if (url) {
-        const opened = openPaymentInNewTab(url, paymentTab);
-
-        // fallback kalau popup ke-block
-        if (!opened) {
-          window.location.href = url;
-          return;
-        }
-
+        // ✅ OPTION 2: jangan auto-open tab (anti popup-block)
+        // tampilkan modal -> user klik tombol/link untuk buka payment
         setLastInvoiceUrl(url);
         setIsPaymentInfoOpen(true);
       } else {
-        paymentTab?.close?.();
         alert("Gagal membuat invoice. Silakan coba lagi.");
       }
     } catch (err: any) {
-      paymentTab?.close?.();
       console.error("B2B payment error:", err);
       const msg =
         err?.response?.data?.message ||
@@ -703,12 +651,6 @@ export default function QuotaPage() {
       return;
     }
 
-    // ✅ pre-open tab (reduce popup blocker)
-    const paymentTab =
-      typeof window !== "undefined"
-        ? window.open("about:blank", "_blank", "noopener,noreferrer")
-        : null;
-
     try {
       setIsBuyingCustom(true);
 
@@ -748,22 +690,15 @@ export default function QuotaPage() {
       );
 
       const url = res?.data?.data?.invoice_url;
+
       if (url) {
-        const opened = openPaymentInNewTab(url, paymentTab);
-
-        if (!opened) {
-          window.location.href = url;
-          return;
-        }
-
+        // ✅ OPTION 2: tampilkan modal, user klik untuk buka payment
         setLastInvoiceUrl(url);
         setIsPaymentInfoOpen(true);
       } else {
-        paymentTab?.close?.();
         alert("Gagal membuat invoice custom. Silakan coba lagi.");
       }
     } catch (err: any) {
-      paymentTab?.close?.();
       console.error("B2B custom payment error:", err);
       const msg =
         err?.response?.data?.message ||
@@ -1063,7 +998,6 @@ export default function QuotaPage() {
                           const existingCodes =
                             appliedVoucherCodesMap[pkg.id] || [];
                           if (existingCodes.length) {
-                            // re-apply voucher dengan quantity baru
                             applyVoucherForPackage(pkg, newQty, existingCodes);
                           } else {
                             setVoucherResultMap((prev) => ({
@@ -1332,7 +1266,7 @@ export default function QuotaPage() {
         </div>
       )}
 
-      {/* PAYMENT INFO MODAL (after opening gateway in new tab) */}
+      {/* PAYMENT INFO MODAL (OPTION 2: user clicks to open payment) */}
       {isPaymentInfoOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-xl shadow-xl w-full max-w-md mx-4 p-6 relative">
@@ -1350,28 +1284,38 @@ export default function QuotaPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground">
-                  Payment opened in a new tab
+                  Invoice created
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Please complete the payment in the new tab. After payment is
-                  successful, come back here and click{" "}
-                  <span className="font-semibold">Refresh</span> to update your
-                  latest quota.
+                  Click the button below to open the payment page. After payment
+                  is successful, come back here and click{" "}
+                  <span className="font-semibold">Refresh quota</span>.
                 </p>
               </div>
             </div>
 
             {lastInvoiceUrl && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-2">
+                {/* Open in new tab (most stable) */}
+                <Button asChild className="w-full gap-2">
+                  <a
+                    href={lastInvoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Zap className="h-4 w-4" />
+                    Open payment in new tab
+                  </a>
+                </Button>
+
+                {/* Optional: pay in same tab */}
                 <Button
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() =>
-                    window.open(lastInvoiceUrl, "_blank", "noopener,noreferrer")
-                  }
+                  onClick={() => window.location.assign(lastInvoiceUrl)}
                 >
-                  Open payment page again
+                  Pay in this tab
                 </Button>
               </div>
             )}
