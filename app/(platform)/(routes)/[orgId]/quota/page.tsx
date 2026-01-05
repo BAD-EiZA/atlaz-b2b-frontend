@@ -801,6 +801,9 @@ export default function QuotaPage() {
                 <h2 className="text-lg font-semibold text-foreground">
                   Available Quota - {examLabel} {selectedTestType}
                 </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your remaining quota
+                </p>
               </div>
               <div className="text-right">
                 {summaryLoading ? (
@@ -1133,7 +1136,7 @@ export default function QuotaPage() {
         </h2>
 
         {historyError ? (
-          <p className="text-sm text-red-500 mb-4">
+          <p className="text-sm text-red-500">
             Failed to load purchase history.
           </p>
         ) : historyLoading ? (
