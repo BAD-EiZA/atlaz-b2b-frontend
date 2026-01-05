@@ -713,12 +713,13 @@ export default function QuotaPage() {
     <div className="p-8">
       <div className="flex md:flex-row flex-col items-start md:items-center justify-between mb-2">
         <div className="flex-1">
-          <Breadcrumb items={[{ label: "Quota & Purchase" }]} />
+          <Breadcrumb items={[{ label: org?.status ? "Quota & Purchase":"Quota Organization" }]} />
           <h1 className="text-xl md:text-3xl font-bold text-foreground">
-            Quota Purchase
+            {org?.status ? "Quota Purchase" : "Organization Quota"}
           </h1>
           <p className="mt-2 text-sm md:text-base text-muted-foreground">
-            Buy and manage test quotas for your organization
+            {org?.status ? "Buy and manage test quotas for your organization":"View details regarding your organization's quota limits and past transactions."}
+            
           </p>
         </div>
         <Link href={`/${orgId}/dashboard`}>
@@ -730,13 +731,15 @@ export default function QuotaPage() {
       </div>
 
       {/* Info currency */}
-      <div className="mb-4 text-sm text-muted-foreground">
-        {isDetectingCurrency
-          ? "Detecting your location and currency..."
-          : currency === "IDR"
-          ? "Prices are shown in Indonesian Rupiah (IDR)."
-          : "Prices are shown in US Dollars (USD) based on your location."}
-      </div>
+      {org?.status && (
+        <div className="mb-4 text-sm text-muted-foreground">
+          {isDetectingCurrency
+            ? "Detecting your location and currency..."
+            : currency === "IDR"
+            ? "Prices are shown in Indonesian Rupiah (IDR)."
+            : "Prices are shown in US Dollars (USD) based on your location."}
+        </div>
+      )}
 
       {/* Exam Type Selection */}
       <div className="mb-2 flex gap-4">
@@ -798,9 +801,6 @@ export default function QuotaPage() {
                 <h2 className="text-lg font-semibold text-foreground">
                   Available Quota - {examLabel} {selectedTestType}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your remaining tests
-                </p>
               </div>
               <div className="text-right">
                 {summaryLoading ? (
@@ -811,7 +811,7 @@ export default function QuotaPage() {
                       {remainingTests}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Tests remaining
+                      Quota remaining
                     </p>
                   </>
                 )}
@@ -1128,7 +1128,7 @@ export default function QuotaPage() {
 
       {/* Purchase History */}
       <Card className="p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">
+        <h2 className="text-lg font-semibold text-foreground">
           Purchase History
         </h2>
 
