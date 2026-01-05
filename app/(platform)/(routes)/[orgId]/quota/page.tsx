@@ -397,9 +397,7 @@ export default function QuotaPage() {
       if (result.invalidCodes?.length) {
         setVoucherErrorMap((prev) => ({
           ...prev,
-          [pkg.id]: `Invalid or unusable codes: ${result.invalidCodes.join(
-            ", "
-          )}`,
+          [pkg.id]: `That code isn't valid or has expired. Please check and try again.`,
         }));
       } else if (!appliedCodes.length) {
         setVoucherErrorMap((prev) => ({
@@ -837,287 +835,296 @@ export default function QuotaPage() {
       </Card>
 
       {/* Pricing Packages */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-foreground mb-2">
-          Buy {examLabel} {selectedTestType} Quota
-        </h2>
-        <p className="text-xs text-muted-foreground mb-4">
-          Currency: {currency === "IDR" ? "IDR" : "USD"}
-        </p>
-
-        {packagesError && (
-          <p className="text-sm text-red-500 mb-4">
-            Failed to load packages. Please refresh the page.
+      {org?.status == true && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            Buy {examLabel} {selectedTestType} Quota
+          </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Currency: {currency === "IDR" ? "IDR" : "USD"}
           </p>
-        )}
 
-        {showPricingLoader ? (
-          <Loader
-            size="md"
-            title={pricingLoaderTitle}
-            subtitle={pricingLoaderSubtitle}
-            className="py-8"
-          />
-        ) : currentPackages.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No packages available for this test type.
-          </p>
-        ) : (
-          <div className="relative">
-            {showCarouselControls && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background shadow disabled:opacity-40"
-                  onClick={handlePrevPackages}
-                  disabled={currentPackageIndex === 0}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background shadow disabled:opacity-40"
-                  onClick={handleNextPackages}
-                  disabled={currentPackageIndex >= maxStartIndex}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </>
-            )}
+          {packagesError && (
+            <p className="text-sm text-red-500 mb-4">
+              Failed to load packages. Please refresh the page.
+            </p>
+          )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {visiblePackages.map((pkg: any) => {
-                const displayPrice = getDisplayPrice(pkg);
-                const basePackagePrice = displayPrice.amount;
-                const qty = qtyMap[pkg.id] ?? 1;
-
-                const voucherResult = voucherResultMap[pkg.id] || null;
-                const appliedCodes = appliedVoucherCodesMap[pkg.id] || [];
-
-                const baseTotal = basePackagePrice * qty;
-                const totalPriceToShow = voucherResult
-                  ? voucherResult.finalAmount
-                  : baseTotal;
-
-                const pricePerTest = getPricePerTest(
-                  basePackagePrice,
-                  pkg.quotaAmount
-                );
-
-                const formattedTotal =
-                  displayPrice.currency === "IDR"
-                    ? formatIDR(totalPriceToShow)
-                    : formatUSD(totalPriceToShow);
-
-                const formattedPerTest =
-                  displayPrice.currency === "IDR"
-                    ? formatIDR(pricePerTest)
-                    : formatUSD(pricePerTest);
-
-                const totalDiscount =
-                  voucherResult?.totalDiscount &&
-                  voucherResult.totalDiscount > 0
-                    ? voucherResult.totalDiscount
-                    : 0;
-
-                return (
-                  <Card
-                    key={pkg.id}
-                    className={`p-6 relative transition-all ${
-                      pkg.popular
-                        ? "ring-2 ring-primary shadow-lg"
-                        : "border-border"
-                    }`}
+          {showPricingLoader ? (
+            <Loader
+              size="md"
+              title={pricingLoaderTitle}
+              subtitle={pricingLoaderSubtitle}
+              className="py-8"
+            />
+          ) : currentPackages.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No packages available for this test type.
+            </p>
+          ) : (
+            <div className="relative">
+              {showCarouselControls && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background shadow disabled:opacity-40"
+                    onClick={handlePrevPackages}
+                    disabled={currentPackageIndex === 0}
                   >
-                    {pkg.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
-                          Best Value
-                        </span>
-                      </div>
-                    )}
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background shadow disabled:opacity-40"
+                    onClick={handleNextPackages}
+                    disabled={currentPackageIndex >= maxStartIndex}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
 
-                    <h3 className="text-lg font-bold text-foreground ">
-                      {pkg.name}
-                    </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {visiblePackages.map((pkg: any) => {
+                  const displayPrice = getDisplayPrice(pkg);
+                  const basePackagePrice = displayPrice.amount;
+                  const qty = qtyMap[pkg.id] ?? 1;
 
-                    {/* Harga + info per test */}
-                    <div className="mb-4">
-                      <div className="text-3xl font-bold text-foreground">
-                        {formattedTotal}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Total for <span className="font-semibold">{qty}x</span>{" "}
-                        package
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {formattedPerTest} per test
-                      </p>
-                      {totalDiscount > 0 && (
-                        <p className="mt-1 text-xs text-emerald-700">
-                          You save{" "}
-                          {displayPrice.currency === "IDR"
-                            ? formatIDR(totalDiscount)
-                            : formatUSD(totalDiscount)}{" "}
-                          with voucher.
-                        </p>
-                      )}
-                    </div>
+                  const voucherResult = voucherResultMap[pkg.id] || null;
+                  const appliedCodes = appliedVoucherCodesMap[pkg.id] || [];
 
-                    <ul className="space-y-3">
-                      {pkg.features.map((feature: string, idx: number) => (
-                        <li
-                          key={idx}
-                          className="flex items-start gap-2 text-sm text-foreground"
-                        >
-                          <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
+                  const baseTotal = basePackagePrice * qty;
+                  const totalPriceToShow = voucherResult
+                    ? voucherResult.finalAmount
+                    : baseTotal;
 
-                    {/* Quantity input */}
-                    <div className="">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        Quantity (packages)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={qty}
-                        onChange={(e) => {
-                          const raw = parseInt(e.target.value || "1", 10);
-                          const newQty =
-                            Number.isNaN(raw) || raw <= 0 ? 1 : raw;
-                          setQtyMap((prev) => ({ ...prev, [pkg.id]: newQty }));
+                  const pricePerTest = getPricePerTest(
+                    basePackagePrice,
+                    pkg.quotaAmount
+                  );
 
-                          const existingCodes =
-                            appliedVoucherCodesMap[pkg.id] || [];
-                          if (existingCodes.length) {
-                            applyVoucherForPackage(pkg, newQty, existingCodes);
-                          } else {
-                            setVoucherResultMap((prev) => ({
-                              ...prev,
-                              [pkg.id]: null,
-                            }));
-                          }
-                        }}
-                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
+                  const formattedTotal =
+                    displayPrice.currency === "IDR"
+                      ? formatIDR(totalPriceToShow)
+                      : formatUSD(totalPriceToShow);
 
-                    {/* Voucher input (only for IDR) */}
-                    {currency === "IDR" && (
-                      <div className=" space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Redeem voucher
-                        </label>
-                        <div className="flex flex-col space-y-2">
-                          <input
-                            type="text"
-                            value={voucherInputMap[pkg.id] || ""}
-                            onChange={(e) =>
-                              setVoucherInputMap((prev) => ({
-                                ...prev,
-                                [pkg.id]: e.target.value,
-                              }))
-                            }
-                            placeholder="Enter voucher code"
-                            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary"
-                            disabled={voucherLoadingMap[pkg.id]}
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => {
-                              const newCode = (
-                                voucherInputMap[pkg.id] || ""
-                              ).trim();
-                              if (!newCode) return;
+                  const formattedPerTest =
+                    displayPrice.currency === "IDR"
+                      ? formatIDR(pricePerTest)
+                      : formatUSD(pricePerTest);
 
-                              const existing =
-                                appliedVoucherCodesMap[pkg.id] || [];
-                              const allCodes = [...existing, newCode];
+                  const totalDiscount =
+                    voucherResult?.totalDiscount &&
+                    voucherResult.totalDiscount > 0
+                      ? voucherResult.totalDiscount
+                      : 0;
 
-                              setVoucherInputMap((prev) => ({
-                                ...prev,
-                                [pkg.id]: "",
-                              }));
-
-                              const quantity = qtyMap[pkg.id] ?? 1;
-                              applyVoucherForPackage(pkg, quantity, allCodes);
-                            }}
-                            disabled={
-                              voucherLoadingMap[pkg.id] ||
-                              !(voucherInputMap[pkg.id] || "").trim()
-                            }
-                            className="gap-1"
-                          >
-                            <TicketPercent className="h-4 w-4" />
-                            Redeem
-                          </Button>
+                  return (
+                    <Card
+                      key={pkg.id}
+                      className={`p-6 relative transition-all ${
+                        pkg.popular
+                          ? "ring-2 ring-primary shadow-lg"
+                          : "border-border"
+                      }`}
+                    >
+                      {pkg.popular && (
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                          <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
+                            Best Value
+                          </span>
                         </div>
+                      )}
 
-                        {voucherErrorMap[pkg.id] && (
-                          <p className="flex items-center gap-1 text-xs text-red-500">
-                            <AlertCircle className="h-3 w-3" />
-                            {voucherErrorMap[pkg.id]}
+                      <h3 className="text-lg font-bold text-foreground ">
+                        {pkg.name}
+                      </h3>
+
+                      {/* Harga + info per test */}
+                      <div className="mb-4">
+                        <div className="text-3xl font-bold text-foreground">
+                          {formattedTotal}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Total for{" "}
+                          <span className="font-semibold">{qty}x</span> package
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {formattedPerTest} per test
+                        </p>
+                        {totalDiscount > 0 && (
+                          <p className="mt-1 text-xs text-emerald-700">
+                            You save{" "}
+                            {displayPrice.currency === "IDR"
+                              ? formatIDR(totalDiscount)
+                              : formatUSD(totalDiscount)}{" "}
+                            with voucher.
                           </p>
                         )}
-
-                        {appliedCodes.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {appliedCodes.map((code) => (
-                              <span
-                                key={code}
-                                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                              >
-                                <TicketPercent className="h-3 w-3" />
-                                {code}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const remaining = appliedCodes.filter(
-                                      (c) => c !== code
-                                    );
-                                    const quantity = qtyMap[pkg.id] ?? 1;
-                                    applyVoucherForPackage(
-                                      pkg,
-                                      quantity,
-                                      remaining
-                                    );
-                                  }}
-                                  className="ml-1 text-emerald-700/70 hover:text-emerald-900"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </div>
-                    )}
 
-                    <Button
-                      onClick={() => handlePurchase(pkg)}
-                      className="w-full gap-2"
-                      variant={pkg.popular ? "default" : "outline"}
-                      disabled={buyingId === pkg.id}
-                    >
-                      <ShoppingCart className="h-4 w-4" />
-                      {buyingId === pkg.id ? "Processing..." : "Buy Now"}
-                    </Button>
-                  </Card>
-                );
-              })}
+                      <ul className="space-y-3">
+                        {pkg.features.map((feature: string, idx: number) => (
+                          <li
+                            key={idx}
+                            className="flex items-start gap-2 text-sm text-foreground"
+                          >
+                            <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* Quantity input */}
+                      <div className="">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Quantity (packages)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={qty}
+                          onChange={(e) => {
+                            const raw = parseInt(e.target.value || "1", 10);
+                            const newQty =
+                              Number.isNaN(raw) || raw <= 0 ? 1 : raw;
+                            setQtyMap((prev) => ({
+                              ...prev,
+                              [pkg.id]: newQty,
+                            }));
+
+                            const existingCodes =
+                              appliedVoucherCodesMap[pkg.id] || [];
+                            if (existingCodes.length) {
+                              applyVoucherForPackage(
+                                pkg,
+                                newQty,
+                                existingCodes
+                              );
+                            } else {
+                              setVoucherResultMap((prev) => ({
+                                ...prev,
+                                [pkg.id]: null,
+                              }));
+                            }
+                          }}
+                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+
+                      {/* Voucher input (only for IDR) */}
+                      {currency === "IDR" && (
+                        <div className=" space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Redeem voucher
+                          </label>
+                          <div className="flex flex-col space-y-2">
+                            <input
+                              type="text"
+                              value={voucherInputMap[pkg.id] || ""}
+                              onChange={(e) =>
+                                setVoucherInputMap((prev) => ({
+                                  ...prev,
+                                  [pkg.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Enter voucher code"
+                              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                              disabled={voucherLoadingMap[pkg.id]}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                const newCode = (
+                                  voucherInputMap[pkg.id] || ""
+                                ).trim();
+                                if (!newCode) return;
+
+                                const existing =
+                                  appliedVoucherCodesMap[pkg.id] || [];
+                                const allCodes = [...existing, newCode];
+
+                                setVoucherInputMap((prev) => ({
+                                  ...prev,
+                                  [pkg.id]: "",
+                                }));
+
+                                const quantity = qtyMap[pkg.id] ?? 1;
+                                applyVoucherForPackage(pkg, quantity, allCodes);
+                              }}
+                              disabled={
+                                voucherLoadingMap[pkg.id] ||
+                                !(voucherInputMap[pkg.id] || "").trim()
+                              }
+                              className="gap-1"
+                            >
+                              <TicketPercent className="h-4 w-4" />
+                              Redeem
+                            </Button>
+                          </div>
+
+                          {voucherErrorMap[pkg.id] && (
+                            <p className="flex items-center gap-1 text-xs text-red-500">
+                              <AlertCircle className="h-3 w-3" />
+                              {voucherErrorMap[pkg.id]}
+                            </p>
+                          )}
+
+                          {appliedCodes.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {appliedCodes.map((code) => (
+                                <span
+                                  key={code}
+                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                                >
+                                  <TicketPercent className="h-3 w-3" />
+                                  {code}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const remaining = appliedCodes.filter(
+                                        (c) => c !== code
+                                      );
+                                      const quantity = qtyMap[pkg.id] ?? 1;
+                                      applyVoucherForPackage(
+                                        pkg,
+                                        quantity,
+                                        remaining
+                                      );
+                                    }}
+                                    className="ml-1 text-emerald-700/70 hover:text-emerald-900"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <Button
+                        onClick={() => handlePurchase(pkg)}
+                        className="w-full gap-2"
+                        variant={pkg.popular ? "default" : "outline"}
+                        disabled={buyingId === pkg.id}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        {buyingId === pkg.id ? "Processing..." : "Buy Now"}
+                      </Button>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Purchase History */}
       <Card className="p-6">

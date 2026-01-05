@@ -1,4 +1,11 @@
-import { OrgPackagesResponse, PaymentHistoryResponse, QuotaSummary, UiExamPackages, UiPackage, UiTransaction } from "@/lib/zod-b2b";
+import {
+  OrgPackagesResponse,
+  PaymentHistoryResponse,
+  QuotaSummary,
+  UiExamPackages,
+  UiPackage,
+  UiTransaction,
+} from "@/lib/zod-b2b";
 
 export const dashboardKeys = {
   quotaSummary: (orgId: number) =>
@@ -69,12 +76,14 @@ export function buildExamPackages(data: OrgPackagesResponse): UiExamPackages {
 
     const uiPackages: UiPackage[] = group.packages.map((pkg) => ({
       id: pkg.id,
-      name: `${pkg.attempt_quota} Quota IELTS ${label} Tests`,
+      name: `${label} Tests`,
       price: Number(pkg.priceInt ?? pkg.price ?? 0),
       quotaAmount: pkg.attempt_quota,
       features: [
-        `${pkg.attempt_quota} ${label} tests`,
         "Instant access",
+        "Automatic scoring",
+        "Report available instantly",
+        "Score prediction + analysis",
       ],
     }));
 
@@ -93,12 +102,14 @@ export function buildExamPackages(data: OrgPackagesResponse): UiExamPackages {
 
     const uiPackages: UiPackage[] = group.packages.map((pkg) => ({
       id: pkg.id,
-      name: `${pkg.attempt_quota} Quota TOEFL ${label} Tests`,
+      name: `${label} Tests`,
       price: Number(pkg.priceInt ?? pkg.price ?? 0),
       quotaAmount: pkg.attempt_quota,
       features: [
-        `${pkg.attempt_quota} ${label} tests`,
         "Instant access",
+        "Automatic scoring",
+        "Report available instantly",
+        "Score prediction + analysis",
       ],
     }));
 
