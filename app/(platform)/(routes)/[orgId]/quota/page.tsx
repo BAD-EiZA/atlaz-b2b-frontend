@@ -520,8 +520,9 @@ export default function QuotaPage() {
     setIsPaymentInfoOpen(false);
     window.location.reload();
   };
-
+  const BACKEND_URL = "https://api-payment.hiatlaz.com";
   const handlePurchase = async (pkg: any) => {
+    // 1. Validasi User Login (Sesuai logic backend B2B strict)
     if (!user?.id) {
       router.push("/login");
       return;
@@ -533,6 +534,7 @@ export default function QuotaPage() {
       return;
     }
 
+    // 2. Persiapan Data Harga & Jumlah
     const qty = qtyMap[pkg.id] ?? 1;
     const displayPrice = getDisplayPrice(pkg);
     const baseUnitPrice = displayPrice.amount;
@@ -541,10 +543,13 @@ export default function QuotaPage() {
     const voucherResult = voucherResultMap[pkg.id];
     const totalPrice = voucherResult ? voucherResult.finalAmount : baseAmount;
 
+    // Currency yang dikirim ke backend (backend akan convert ke IDR jika perlu)
     const finalCurrency: Currency = displayPrice.currency;
-    const testCategory = selectedExam === "ielts" ? "IELTS" : "TOEFL";
 
+    // Tentukan Kategori & Tipe Test untuk Backend Routing & Quota
+    const testCategory = selectedExam === "ielts" ? "IELTS" : "TOEFL";
     const testTypeId = resolveTestTypeId(selectedExam, selectedTestType, pkg);
+
     if (!testTypeId) {
       alert("Test type ID not found for this package.");
       return;
@@ -561,6 +566,7 @@ export default function QuotaPage() {
       };
       if (token) headers.Authorization = `Bearer ${token}`;
 
+      // 3. Payload sesuai DTO Backend NestJS
       const payload = {
         orgId: finalOrgId,
         currency: finalCurrency,
@@ -568,37 +574,40 @@ export default function QuotaPage() {
         user: {
           id: user.id,
           email: user.email,
+          username: user.name || user.username || "Admin B2B",
         },
+        // Object 'price' ini akan disimpan sebagai snapshot di backend
         price: {
           id: pkg.id,
-          name: pkg.name,
           title: pkg.name,
-          test_category: testCategory,
-          test_type_id: testTypeId,
-          attempt_quota: pkg.quotaAmount * qty,
+          test_category: testCategory, // Penting: "IELTS" atau "TOEFL"
+          test_type_id: testTypeId, // Penting: ID tipe tes (misal 1, 2, 3)
+          attempt_quota: pkg.quotaAmount * qty, // Total kuota yang akan didapat
+
+          // Metadata tambahan (opsional tapi berguna untuk history)
+          name: pkg.name,
           exam: selectedExam,
           test_type: selectedTestType,
-          features: pkg.features,
-          popular: pkg.popular ?? false,
           vouchers: appliedCodes,
         },
       };
 
+      // 4. Hit Endpoint Backend Baru
       const res = await axios.post(
-        `https://api-test.hiatlaz.com/api/v1/payment_b2b/payment/create-invoice`,
+        `${BACKEND_URL}/payment/b2b/invoice`,
         payload,
         { headers }
       );
 
+      // 5. Handle Response
+      // NestJS return: { status: 'success', data: { invoice_url: '...' } }
       const url = res?.data?.data?.invoice_url;
 
       if (url) {
-        // ✅ OPTION 2: jangan auto-open tab (anti popup-block)
-        // tampilkan modal -> user klik tombol/link untuk buka payment
         setLastInvoiceUrl(url);
         setIsPaymentInfoOpen(true);
       } else {
-        alert("Gagal membuat invoice. Silakan coba lagi.");
+        alert("Gagal membuat invoice. Tidak ada URL pembayaran.");
       }
     } catch (err: any) {
       console.error("B2B payment error:", err);
@@ -607,7 +616,7 @@ export default function QuotaPage() {
         err?.response?.data?.error ||
         err?.message ||
         "Failed to create invoice.";
-      alert(msg);
+      alert(`Payment Error: ${msg}`);
     } finally {
       setBuyingId(null);
     }
@@ -713,13 +722,20 @@ export default function QuotaPage() {
     <div className="p-8">
       <div className="flex md:flex-row flex-col items-start md:items-center justify-between mb-2">
         <div className="flex-1">
-          <Breadcrumb items={[{ label: org?.status ? "Quota & Purchase":"Quota Organization" }]} />
+          <Breadcrumb
+            items={[
+              {
+                label: org?.status ? "Quota & Purchase" : "Quota Organization",
+              },
+            ]}
+          />
           <h1 className="text-xl md:text-3xl font-bold text-foreground">
             {org?.status ? "Quota Purchase" : "Organization Quota"}
           </h1>
           <p className="mt-2 text-sm md:text-base text-muted-foreground">
-            {org?.status ? "Buy and manage test quotas for your organization":"View details regarding your organization's quota limits and past transactions."}
-            
+            {org?.status
+              ? "Buy and manage test quotas for your organization"
+              : "View details regarding your organization's quota limits and past transactions."}
           </p>
         </div>
         <Link href={`/${orgId}/dashboard`}>
