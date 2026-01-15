@@ -184,7 +184,7 @@ export function mapPaymentHistoryToTransactions(
     return {
       id: row.id,
       date: dateStr,
-      package: row.rawPayload?.pkg?.title!,
+      package: row.rawPayload?.pkg?.title! ?? row.rawPayload?.purpose!,
       tests,
       amount: Number(row.amount),
       currency: row.currency,
