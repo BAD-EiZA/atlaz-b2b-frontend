@@ -262,12 +262,12 @@ export function QuotaAllocationModal({
                           getMaxQuotaForStudent("IELTS", testType) || undefined
                         }
                         disabled={isDisabled}
-                        value={quotas.IELTS[testType] ?? 0}
+                        value={quotas.IELTS[testType] || ""}
                         onChange={(e) =>
                           handleQuotaChange(
                             "IELTS",
                             testType,
-                            parseInt(e.target.value || "0", 10)
+                            e.target.value === "" ? 0 : parseInt(e.target.value, 10)
                           )
                         }
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-muted disabled:text-muted-foreground"
@@ -309,12 +309,12 @@ export function QuotaAllocationModal({
                           getMaxQuotaForStudent("TOEFL", testType) || undefined
                         }
                         disabled={isDisabled}
-                        value={quotas.TOEFL[testType] ?? 0}
+                        value={quotas.TOEFL[testType] || ""}
                         onChange={(e) =>
                           handleQuotaChange(
                             "TOEFL",
                             testType,
-                            parseInt(e.target.value || "0", 10)
+                            e.target.value === "" ? 0 : parseInt(e.target.value, 10)
                           )
                         }
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-muted disabled:text-muted-foreground"
