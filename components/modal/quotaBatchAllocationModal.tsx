@@ -9,7 +9,7 @@ import {
   useRevokeQuota,
 } from "@/app/actions/hooks/b2b/useQuota";
 import { useB2BOrgStore } from "@/store/useB2BOrgStore";
-import { Minus, Plus } from "lucide-react"; // Asumsi project menggunakan lucide-react (standar shadcn)
+import { Minus, Plus, AlertCircle } from "lucide-react"; // Added AlertCircle for warning icon
 
 type ExamAvailableQuota = {
   IELTS: {
@@ -49,7 +49,7 @@ const TOEFL_TYPE_ID: Record<string, number> = {
   Complete: 4,
 };
 
-// Konstanta untuk step allocation
+// Konstanta batch
 const ALLOCATION_STEP = 5;
 
 export function QuotaBatchAllocationModal({
@@ -96,7 +96,6 @@ export function QuotaBatchAllocationModal({
     return (examQuotas[testType] as number | undefined) ?? 0;
   };
 
-  // Menghitung sisa kuota organisasi secara realtime berdasarkan perubahan state lokal
   const getRemainingAvailable = (exam: "IELTS" | "TOEFL", testType: string) => {
     const baseAvailable = getBaseAvailableQuota(exam, testType);
     const originalStudent = getOriginalStudentQuota(exam, testType);
@@ -123,7 +122,6 @@ export function QuotaBatchAllocationModal({
         newVal = currentVal - ALLOCATION_STEP;
       }
 
-      // Safety check agar tidak minus
       if (newVal < 0) newVal = 0;
 
       return {
@@ -146,7 +144,6 @@ export function QuotaBatchAllocationModal({
         diff: number;
       }[] = [];
 
-      // Calculate Diff IELTS
       for (const t of ieltTypes) {
         const oldVal = original.IELTS[t] ?? 0;
         const newVal = quotas.IELTS[t] ?? 0;
@@ -154,7 +151,6 @@ export function QuotaBatchAllocationModal({
         if (diff !== 0) ops.push({ exam: "IELTS", testType: t, diff });
       }
 
-      // Calculate Diff TOEFL
       for (const t of toeflTypes) {
         const oldVal = original.TOEFL[t] ?? 0;
         const newVal = quotas.TOEFL[t] ?? 0;
@@ -188,7 +184,6 @@ export function QuotaBatchAllocationModal({
           });
         }
       }
-
       onClose();
     } catch (e) {
       console.error(e);
@@ -204,11 +199,15 @@ export function QuotaBatchAllocationModal({
       ((quotas as any)?.[exam]?.[testType] as number | undefined) ?? 0;
     const remainingOrgQuota = getRemainingAvailable(exam, testType);
 
-    // Disabled Minus jika nilai sekarang 0
-    const isMinusDisabled = currentVal === 0;
+    // LOGIKA UTAMA: Cek kelipatan
+    const isMultipleOfFive = currentVal % ALLOCATION_STEP === 0;
 
-    // Disabled Plus jika sisa kuota org < 5 (tidak cukup untuk 1 batch)
-    // ATAU jika kita mencapai batas aman logika (meski jarang terjadi di batch logic)
+    // Disabled Minus jika:
+    // 1. Nilai sekarang kurang dari step (misal 0, 1, 2, 3, 4)
+    // 2. Nilai sekarang BUKAN kelipatan 5 (misal 2, 7, 12) -> Sesuai request
+    const isMinusDisabled = currentVal < ALLOCATION_STEP || !isMultipleOfFive;
+
+    // Disabled Plus jika sisa kuota org < 5
     const isPlusDisabled = remainingOrgQuota < ALLOCATION_STEP;
 
     return (
@@ -230,7 +229,9 @@ export function QuotaBatchAllocationModal({
               <span className="sr-only">Decrease</span>
             </Button>
 
-            <div className="flex-1 text-center font-mono text-sm font-medium border rounded-md py-2 bg-background min-w-[60px]">
+            <div
+              className={`flex-1 flex items-center justify-center text-center font-mono text-sm font-medium border rounded-md py-2 min-w-[60px] ${!isMultipleOfFive ? "bg-yellow-50 text-yellow-700 border-yellow-200" : "bg-background"}`}
+            >
               {currentVal}
             </div>
 
@@ -248,14 +249,20 @@ export function QuotaBatchAllocationModal({
 
           <div className="flex justify-between items-center px-1">
             <span className="text-xs text-muted-foreground">
-              Org Remaining: {remainingOrgQuota}
+              Org Rem: {remainingOrgQuota}
             </span>
+
+            {/* Feedback UI jika angka tidak valid untuk batch operation */}
+            {!isMultipleOfFive && currentVal > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-yellow-600 font-medium">
+                <AlertCircle className="w-3 h-3" /> Non-batch qty
+              </span>
+            )}
+
             {isPlusDisabled &&
               remainingOrgQuota > 0 &&
               remainingOrgQuota < 5 && (
-                <span className="text-[10px] text-red-500">
-                  Not enough for +5
-                </span>
+                <span className="text-[10px] text-red-500">Insuff. quota</span>
               )}
           </div>
         </div>
@@ -307,7 +314,6 @@ export function QuotaBatchAllocationModal({
             </div>
           </div>
 
-          {/* Summary */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col sm:flex-row gap-4 justify-between items-center">
             <div className="space-y-1">
               <p className="text-sm text-blue-900">
@@ -316,9 +322,6 @@ export function QuotaBatchAllocationModal({
               <p className="text-sm text-blue-900">
                 <span className="font-semibold">Total TOEFL:</span> {totalTOEFL}
               </p>
-            </div>
-            <div className="text-xs text-blue-700 italic">
-              Changes are saved in batches of 5
             </div>
           </div>
         </div>
