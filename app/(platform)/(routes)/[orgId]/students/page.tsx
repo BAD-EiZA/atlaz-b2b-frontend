@@ -20,6 +20,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ExamAvailableQuota } from "@/lib/types";
+import { useB2BOrgStore } from "@/store/useB2BOrgStore";
+import { QuotaBatchAllocationModal } from "@/components/modal/quotaBatchAllocationModal";
 
 export default function StudentsPage() {
   const params = useParams<{ orgId: string }>();
@@ -29,11 +31,12 @@ export default function StudentsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<MemberRow | null>(
-    null
+    null,
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const itemsPerPage = 10;
+  const { org, user } = useB2BOrgStore();
 
   const {
     data: membersList,
@@ -73,8 +76,6 @@ export default function StudentsPage() {
       { topup: number; used: number; remaining: number }
     >;
 
-   
-
     base.IELTS.Listening = iPer["1"]?.remaining ?? 0;
     base.IELTS.Reading = iPer["2"]?.remaining ?? 0;
     base.IELTS.Writing = iPer["3"]?.remaining ?? 0;
@@ -95,24 +96,24 @@ export default function StudentsPage() {
     return base;
   }, [quotaSummary]);
 
-   const allQuotaZero = (() => {
-      const i = availableQuotas?.IELTS;
-      const t = availableQuotas?.TOEFL;
+  const allQuotaZero = (() => {
+    const i = availableQuotas?.IELTS;
+    const t = availableQuotas?.TOEFL;
 
-      const nums = [
-        i?.Listening,
-        i?.Reading,
-        i?.Writing,
-        i?.Speaking,
-        i?.Complete,
-        t?.Listening,
-        t?.["Structure & Written Expression"],
-        t?.Reading,
-        t?.Complete,
-      ].map((n) => Number(n ?? 0));
+    const nums = [
+      i?.Listening,
+      i?.Reading,
+      i?.Writing,
+      i?.Speaking,
+      i?.Complete,
+      t?.Listening,
+      t?.["Structure & Written Expression"],
+      t?.Reading,
+      t?.Complete,
+    ].map((n) => Number(n ?? 0));
 
-      return nums.every((n) => n <= 0);
-    })();
+    return nums.every((n) => n <= 0);
+  })();
 
   const totalItems = membersList?.total ?? 0;
   const totalPages = membersList
@@ -157,7 +158,11 @@ export default function StudentsPage() {
               <Upload className="h-4 w-4" />
               Bulk Import
             </Button>
-            <Button disabled={allQuotaZero} onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button
+              disabled={allQuotaZero}
+              onClick={() => setShowAddModal(true)}
+              className="gap-2"
+            >
               <Plus className="h-4 w-4" />
               Add Student
             </Button>
@@ -238,11 +243,11 @@ export default function StudentsPage() {
 
                       const ieltsTotal = Object.values(ielts).reduce(
                         (sum, v) => sum + v,
-                        0
+                        0,
                       );
                       const toeflTotal = Object.values(toefl).reduce(
                         (sum, v) => sum + v,
-                        0
+                        0,
                       );
 
                       return (
@@ -378,14 +383,23 @@ export default function StudentsPage() {
           </div>
         )}
 
-        {showQuotaModal && selectedStudent && (
-          <QuotaAllocationModal
-            orgId={orgId}
-            student={selectedStudent}
-            availableQuotas={availableQuotas}
-            onClose={() => setShowQuotaModal(false)}
-          />
-        )}
+        {showQuotaModal &&
+          selectedStudent &&
+          (org?.status == true ? (
+            <QuotaAllocationModal
+              orgId={orgId}
+              student={selectedStudent}
+              availableQuotas={availableQuotas}
+              onClose={() => setShowQuotaModal(false)}
+            />
+          ) : (
+            <QuotaBatchAllocationModal
+              orgId={orgId}
+              student={selectedStudent}
+              availableQuotas={availableQuotas}
+              onClose={() => setShowQuotaModal(false)}
+            />
+          ))}
       </div>
     </TooltipProvider>
   );
