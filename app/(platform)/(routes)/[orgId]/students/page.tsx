@@ -51,6 +51,41 @@ export default function StudentsPage() {
   const { data: quotaSummary, isLoading: isQuotaLoading } =
     useOrgQuotaSummary(orgId);
 
+  const formatExpiry = (dateStr: string | null) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const QuotaTooltipItem = ({
+    label,
+    data,
+  }: {
+    label: string;
+    data: { count: number; expiry: string | null } | undefined;
+  }) => {
+    const count = data?.count ?? 0;
+    const expiry = data?.expiry;
+
+    return (
+      <div className="flex justify-between items-center gap-4 text-xs">
+        <span>{label}:</span>
+        <span className="font-mono">
+          {count}
+          {count > 0 && expiry && (
+            <span className="ml-1 text-[10px] text-yellow-300/90">
+              (Exp: {formatExpiry(expiry)})
+            </span>
+          )}
+        </span>
+      </div>
+    );
+  };
+
   const availableQuotas: ExamAvailableQuota = useMemo(() => {
     const base: ExamAvailableQuota = {
       IELTS: {
@@ -227,29 +262,35 @@ export default function StudentsPage() {
                   </thead>
                   <tbody>
                     {members.map((student) => {
+                      const defaultQuotaItem = { count: 0, expiry: null };
+
+                      // 2. Ambil data quota (Backend sekarang return object {count, expiry})
+                      // Kita casting 'as any' jika TS belum diupdate interface-nya,
+                      // atau sesuaikan interface MemberRow di file types
                       const ielts = student.quotas?.IELTS ?? {
-                        Listening: 0,
-                        Reading: 0,
-                        Writing: 0,
-                        Speaking: 0,
-                        Complete: 0,
-                      };
-                      const toefl = student.quotas?.TOEFL ?? {
-                        Listening: 0,
-                        Reading: 0,
-                        "Structure & Written Expression": 0,
-                        Complete: 0,
+                        Listening: defaultQuotaItem,
+                        Reading: defaultQuotaItem,
+                        Writing: defaultQuotaItem,
+                        Speaking: defaultQuotaItem,
+                        Complete: defaultQuotaItem,
                       };
 
+                      const toefl = student.quotas?.TOEFL ?? {
+                        Listening: defaultQuotaItem,
+                        Reading: defaultQuotaItem,
+                        "Structure & Written Expression": defaultQuotaItem,
+                        Complete: defaultQuotaItem,
+                      };
+
+                      // 3. Hitung Total (Akses property .count)
                       const ieltsTotal = Object.values(ielts).reduce(
-                        (sum, v) => sum + v,
+                        (sum, v: any) => sum + (v.count ?? 0),
                         0,
                       );
                       const toeflTotal = Object.values(toefl).reduce(
-                        (sum, v) => sum + v,
+                        (sum, v: any) => sum + (v.count ?? 0),
                         0,
                       );
-
                       return (
                         <tr
                           key={student.id}
@@ -281,21 +322,38 @@ export default function StudentsPage() {
                                   <Info className="h-3 w-3" />
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent className="text-xs">
-                                <div className="space-y-1">
-                                  <p className="font-semibold">
+                              <TooltipContent className="text-xs max-w-[300px]">
+                                <div className="space-y-1 p-1">
+                                  <p className="font-semibold mb-2 border-b pb-1">
                                     IELTS Quota Breakdown
                                   </p>
-                                  <p>Listening: {ielts.Listening}</p>
-                                  <p>Reading: {ielts.Reading}</p>
-                                  <p>Writing: {ielts.Writing}</p>
-                                  <p>Speaking: {ielts.Speaking}</p>
-                                  <p>Complete: {ielts.Complete}</p>
+                                  {/* Pass entire object (count + expiry) ke helper */}
+                                  <QuotaTooltipItem
+                                    label="Listening"
+                                    data={ielts.Listening as any}
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Reading"
+                                    data={ielts.Reading as any}
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Writing"
+                                    data={ielts.Writing as any}
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Speaking"
+                                    data={ielts.Speaking as any}
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Complete"
+                                    data={ielts.Complete as any}
+                                  />
                                 </div>
                               </TooltipContent>
                             </Tooltip>
                           </td>
 
+                          {/* KOLOM TOEFL QUOTA */}
                           <td className="py-4 px-6 text-sm text-foreground font-medium">
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -304,18 +362,31 @@ export default function StudentsPage() {
                                   <Info className="h-3 w-3" />
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent className="text-xs">
-                                <div className="space-y-1">
-                                  <p className="font-semibold">
+                              <TooltipContent className="text-xs max-w-[300px]">
+                                <div className="space-y-1 p-1">
+                                  <p className="font-semibold mb-2 border-b pb-1">
                                     TOEFL Quota Breakdown
                                   </p>
-                                  <p>Listening: {toefl.Listening}</p>
-                                  <p>Reading: {toefl.Reading}</p>
-                                  <p>
-                                    Structure &amp; Written Expression:{" "}
-                                    {toefl["Structure & Written Expression"]}
-                                  </p>
-                                  <p>Complete: {toefl.Complete}</p>
+                                  <QuotaTooltipItem
+                                    label="Listening"
+                                    data={toefl.Listening as any}
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Reading"
+                                    data={toefl.Reading as any}
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Structure"
+                                    data={
+                                      toefl[
+                                        "Structure & Written Expression"
+                                      ] as any
+                                    }
+                                  />
+                                  <QuotaTooltipItem
+                                    label="Complete"
+                                    data={toefl.Complete as any}
+                                  />
                                 </div>
                               </TooltipContent>
                             </Tooltip>
