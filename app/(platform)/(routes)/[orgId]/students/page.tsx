@@ -23,6 +23,41 @@ import { ExamAvailableQuota } from "@/lib/types";
 import { useB2BOrgStore } from "@/store/useB2BOrgStore";
 import { QuotaBatchAllocationModal } from "@/components/modal/quotaBatchAllocationModal";
 
+const formatExpiry = (dateStr: string | null) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const QuotaTooltipItem = ({
+  label,
+  data,
+}: {
+  label: string;
+  data: { count: number; expiry: string | null } | undefined;
+}) => {
+  const count = data?.count ?? 0;
+  const expiry = data?.expiry;
+
+  return (
+    <div className="flex justify-between items-center gap-4 text-xs">
+      <span>{label}:</span>
+      <span className="font-mono">
+        {count}
+        {count > 0 && expiry && (
+          <span className="ml-1 text-[10px] text-yellow-300/90">
+            (Exp: {formatExpiry(expiry)})
+          </span>
+        )}
+      </span>
+    </div>
+  );
+};
+
 export default function StudentsPage() {
   const params = useParams<{ orgId: string }>();
   const orgId = Number(params.orgId);
@@ -50,41 +85,6 @@ export default function StudentsPage() {
 
   const { data: quotaSummary, isLoading: isQuotaLoading } =
     useOrgQuotaSummary(orgId);
-
-  const formatExpiry = (dateStr: string | null) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const QuotaTooltipItem = ({
-    label,
-    data,
-  }: {
-    label: string;
-    data: { count: number; expiry: string | null } | undefined;
-  }) => {
-    const count = data?.count ?? 0;
-    const expiry = data?.expiry;
-
-    return (
-      <div className="flex justify-between items-center gap-4 text-xs">
-        <span>{label}:</span>
-        <span className="font-mono">
-          {count}
-          {count > 0 && expiry && (
-            <span className="ml-1 text-[10px] text-yellow-300/90">
-              (Exp: {formatExpiry(expiry)})
-            </span>
-          )}
-        </span>
-      </div>
-    );
-  };
 
   const availableQuotas: ExamAvailableQuota = useMemo(() => {
     const base: ExamAvailableQuota = {
