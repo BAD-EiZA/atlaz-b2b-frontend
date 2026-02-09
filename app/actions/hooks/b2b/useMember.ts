@@ -6,35 +6,45 @@ import { api } from "@/lib/api";
 
 /* ============ ZOD SCHEMAS ============ */
 
+// 1. Definisikan Schema untuk Value Quota (Count + Expiry)
+const quotaValueSchema = z.object({
+  count: z.number().default(0),
+  expiry: z.string().nullable().optional(),
+});
+
+// 2. Update Default Value agar sesuai struktur baru
+const defaultQuotaValue = { count: 0, expiry: null };
+
 const defaultQuotas = {
   IELTS: {
-    Reading: 0,
-    Listening: 0,
-    Writing: 0,
-    Speaking: 0,
-    Complete: 0,
+    Reading: defaultQuotaValue,
+    Listening: defaultQuotaValue,
+    Writing: defaultQuotaValue,
+    Speaking: defaultQuotaValue,
+    Complete: defaultQuotaValue,
   },
   TOEFL: {
-    Reading: 0,
-    Listening: 0,
-    "Structure & Written Expression": 0,
-    Complete: 0,
+    Reading: defaultQuotaValue,
+    Listening: defaultQuotaValue,
+    "Structure & Written Expression": defaultQuotaValue,
+    Complete: defaultQuotaValue,
   },
 };
 
+// 3. Update Quota Schema utama
 const quotaSchema = z.object({
   IELTS: z.object({
-    Reading: z.number(),
-    Listening: z.number(),
-    Writing: z.number(),
-    Speaking: z.number(),
-    Complete: z.number(),
+    Reading: quotaValueSchema,
+    Listening: quotaValueSchema,
+    Writing: quotaValueSchema,
+    Speaking: quotaValueSchema,
+    Complete: quotaValueSchema,
   }),
   TOEFL: z.object({
-    Reading: z.number(),
-    Listening: z.number(),
-    "Structure & Written Expression": z.number(),
-    Complete: z.number(),
+    Reading: quotaValueSchema,
+    Listening: quotaValueSchema,
+    "Structure & Written Expression": quotaValueSchema,
+    Complete: quotaValueSchema,
   }),
 });
 
@@ -49,10 +59,12 @@ const memberRowSchema = z.object({
     id: z.number(),
     name: z.string().nullable(),
     email: z.string().nullable(),
-  }),
-  // ⬇⬇⬇ ini yang diubah
-  quotas: quotaSchema.default(defaultQuotas), // kalau undefined → pakai defaultQuotas
+  }).nullable().optional(), // Tambahkan nullable/optional jaga-jaga user terhapus
+  
+  // ⬇⬇⬇ Gunakan schema baru & default value baru
+  quotas: quotaSchema.optional().default(defaultQuotas), 
 });
+
 const memberListSchema = z.object({
   data: z.array(memberRowSchema),
   total: z.number(),
@@ -60,8 +72,12 @@ const memberListSchema = z.object({
   pageSize: z.number(),
 });
 
-export type MemberRow = z.infer<typeof memberRowSchema>;
+// Export Type otomatis mengikuti perubahan Zod
+export type MemberRow = z.infer<typeof memberRowSchema>; 
 export type MemberListResponse = z.infer<typeof memberListSchema>;
+
+// Tambahan helper type jika diperlukan di komponen
+export type QuotaValue = z.infer<typeof quotaValueSchema>;
 
 export const memberKeys = {
   list: (orgId: number) => ["b2b", "members", orgId] as const,
@@ -95,6 +111,7 @@ export function useMembers(orgId: number, params: UseMembersParams) {
           status: params.status,
         },
       });
+      // Parse response dengan schema baru
       return memberListSchema.parse(res.data);
     },
   });
@@ -102,6 +119,7 @@ export function useMembers(orgId: number, params: UseMembersParams) {
 
 /* ============ ADD MEMBER ============ */
 
+// Schema input tetap sama (biasanya input hanya kirim jumlah quota, expiry diurus backend/default)
 const quotaItemSchema = z.object({
   test_name: z.enum(["IELTS", "TOEFL"]),
   test_type_id: z.number().int().positive(),
@@ -114,7 +132,6 @@ export const addMemberInputSchema = z.object({
   username: z.string().min(1),
   password: z.string().optional().nullable(),
 
-  // optional – kalau belum dipakai gapapa
   nationality: z.string().optional().nullable(),
   country_origin: z.string().optional().nullable(),
   first_language: z.string().optional().nullable(),
@@ -132,6 +149,7 @@ export function useAddMember(orgId: number) {
     mutationFn: async (payload: AddMemberInput) => {
       const body = addMemberInputSchema.parse(payload);
       const res = await api.post(`/v1/b2b/orgs/${orgId}/members`, body);
+      // Validasi respon create member (pastikan backend return format yang cocok atau gunakan any sementara jika beda)
       return memberRowSchema.parse(res.data);
     },
     onSuccess: () => {
