@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MemberRow } from "@/app/actions/hooks/b2b/useMember";
@@ -9,7 +9,7 @@ import {
   useRevokeQuota,
 } from "@/app/actions/hooks/b2b/useQuota";
 import { useB2BOrgStore } from "@/store/useB2BOrgStore";
-import { Minus, Plus, AlertCircle } from "lucide-react"; // Added AlertCircle for warning icon
+import { Minus, Plus, AlertCircle } from "lucide-react";
 
 type ExamAvailableQuota = {
   IELTS: {
@@ -49,6 +49,12 @@ const TOEFL_TYPE_ID: Record<string, number> = {
   Complete: 4,
 };
 
+// Helper safe access (number | object) -> number
+const getCount = (val: any): number => {
+  if (typeof val === "number") return val;
+  return val?.count ?? 0;
+};
+
 // Konstanta batch
 const ALLOCATION_STEP = 5;
 
@@ -58,8 +64,46 @@ export function QuotaBatchAllocationModal({
   availableQuotas,
   onClose,
 }: Props) {
-  const [quotas, setQuotas] = useState(student.quotas);
+  const [quotas, setQuotas] = useState({
+    IELTS: {
+      Listening: 0,
+      Reading: 0,
+      Writing: 0,
+      Speaking: 0,
+      Complete: 0,
+    },
+    TOEFL: {
+      Listening: 0,
+      Reading: 0,
+      "Structure & Written Expression": 0,
+      Complete: 0,
+    },
+  });
+
   const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize State
+  useEffect(() => {
+    if (student) {
+      setQuotas({
+        IELTS: {
+          Listening: getCount(student.quotas?.IELTS?.Listening),
+          Reading: getCount(student.quotas?.IELTS?.Reading),
+          Writing: getCount(student.quotas?.IELTS?.Writing),
+          Speaking: getCount(student.quotas?.IELTS?.Speaking),
+          Complete: getCount(student.quotas?.IELTS?.Complete),
+        },
+        TOEFL: {
+          Listening: getCount(student.quotas?.TOEFL?.Listening),
+          Reading: getCount(student.quotas?.TOEFL?.Reading),
+          "Structure & Written Expression": getCount(
+            student.quotas?.TOEFL?.["Structure & Written Expression"],
+          ),
+          Complete: getCount(student.quotas?.TOEFL?.Complete),
+        },
+      });
+    }
+  }, [student]);
 
   const { mutateAsync: allocate } = useAllocateQuota(orgId);
   const { mutateAsync: revoke } = useRevokeQuota(orgId);
@@ -88,7 +132,7 @@ export function QuotaBatchAllocationModal({
     testType: string,
   ) => {
     const examQuotas = (student.quotas as any)?.[exam] ?? {};
-    return (examQuotas[testType] as number | undefined) ?? 0;
+    return getCount(examQuotas[testType]);
   };
 
   const getBaseAvailableQuota = (exam: "IELTS" | "TOEFL", testType: string) => {
@@ -99,8 +143,9 @@ export function QuotaBatchAllocationModal({
   const getRemainingAvailable = (exam: "IELTS" | "TOEFL", testType: string) => {
     const baseAvailable = getBaseAvailableQuota(exam, testType);
     const originalStudent = getOriginalStudentQuota(exam, testType);
-    const currentStudent =
-      ((quotas as any)?.[exam]?.[testType] as number | undefined) ?? 0;
+
+    // Ambil dari local state
+    const currentStudent = (quotas as any)?.[exam]?.[testType] ?? 0;
 
     const delta = currentStudent - originalStudent;
     const remaining = baseAvailable - delta;
@@ -137,7 +182,6 @@ export function QuotaBatchAllocationModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const original = student.quotas;
       const ops: {
         exam: "IELTS" | "TOEFL";
         testType: string;
@@ -145,15 +189,15 @@ export function QuotaBatchAllocationModal({
       }[] = [];
 
       for (const t of ieltTypes) {
-        const oldVal = original.IELTS[t] ?? 0;
-        const newVal = quotas.IELTS[t] ?? 0;
+        const oldVal = getCount(student.quotas?.IELTS?.[t]);
+        const newVal = quotas.IELTS[t];
         const diff = newVal - oldVal;
         if (diff !== 0) ops.push({ exam: "IELTS", testType: t, diff });
       }
 
       for (const t of toeflTypes) {
-        const oldVal = original.TOEFL[t] ?? 0;
-        const newVal = quotas.TOEFL[t] ?? 0;
+        const oldVal = getCount(student.quotas?.TOEFL?.[t]);
+        const newVal = quotas.TOEFL[t];
         const diff = newVal - oldVal;
         if (diff !== 0) ops.push({ exam: "TOEFL", testType: t, diff });
       }
@@ -195,19 +239,13 @@ export function QuotaBatchAllocationModal({
 
   // Helper untuk me-render baris kontrol stepper
   const renderQuotaControl = (exam: "IELTS" | "TOEFL", testType: string) => {
-    const currentVal =
-      ((quotas as any)?.[exam]?.[testType] as number | undefined) ?? 0;
+    // Ambil dari local state
+    const currentVal = (quotas as any)?.[exam]?.[testType] ?? 0;
     const remainingOrgQuota = getRemainingAvailable(exam, testType);
 
-    // LOGIKA UTAMA: Cek kelipatan
     const isMultipleOfFive = currentVal % ALLOCATION_STEP === 0;
 
-    // Disabled Minus jika:
-    // 1. Nilai sekarang kurang dari step (misal 0, 1, 2, 3, 4)
-    // 2. Nilai sekarang BUKAN kelipatan 5 (misal 2, 7, 12) -> Sesuai request
     const isMinusDisabled = currentVal < ALLOCATION_STEP || !isMultipleOfFive;
-
-    // Disabled Plus jika sisa kuota org < 5
     const isPlusDisabled = remainingOrgQuota < ALLOCATION_STEP;
 
     return (
@@ -252,7 +290,6 @@ export function QuotaBatchAllocationModal({
               Org Rem: {remainingOrgQuota}
             </span>
 
-            {/* Feedback UI jika angka tidak valid untuk batch operation */}
             {!isMultipleOfFive && currentVal > 0 && (
               <span className="flex items-center gap-1 text-[10px] text-yellow-600 font-medium">
                 <AlertCircle className="w-3 h-3" /> Non-batch qty

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MemberRow } from "@/app/actions/hooks/b2b/useMember";
@@ -48,14 +48,59 @@ const TOEFL_TYPE_ID: Record<string, number> = {
   Complete: 4,
 };
 
+// Helper safe access (number | object) -> number
+const getCount = (val: any): number => {
+  if (typeof val === "number") return val;
+  return val?.count ?? 0;
+};
+
 export function QuotaAllocationModal({
   orgId,
   student,
   availableQuotas,
   onClose,
 }: Props) {
-  const [quotas, setQuotas] = useState(student.quotas);
+  // State lokal hanya menyimpan angka (number) untuk input form
+  const [quotas, setQuotas] = useState({
+    IELTS: {
+      Listening: 0,
+      Reading: 0,
+      Writing: 0,
+      Speaking: 0,
+      Complete: 0,
+    },
+    TOEFL: {
+      Listening: 0,
+      Reading: 0,
+      "Structure & Written Expression": 0,
+      Complete: 0,
+    },
+  });
+
   const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize state saat student berubah
+  useEffect(() => {
+    if (student) {
+      setQuotas({
+        IELTS: {
+          Listening: getCount(student.quotas?.IELTS?.Listening),
+          Reading: getCount(student.quotas?.IELTS?.Reading),
+          Writing: getCount(student.quotas?.IELTS?.Writing),
+          Speaking: getCount(student.quotas?.IELTS?.Speaking),
+          Complete: getCount(student.quotas?.IELTS?.Complete),
+        },
+        TOEFL: {
+          Listening: getCount(student.quotas?.TOEFL?.Listening),
+          Reading: getCount(student.quotas?.TOEFL?.Reading),
+          "Structure & Written Expression": getCount(
+            student.quotas?.TOEFL?.["Structure & Written Expression"],
+          ),
+          Complete: getCount(student.quotas?.TOEFL?.Complete),
+        },
+      });
+    }
+  }, [student]);
 
   const { mutateAsync: allocate } = useAllocateQuota(orgId);
   const { mutateAsync: revoke } = useRevokeQuota(orgId);
@@ -74,13 +119,15 @@ export function QuotaAllocationModal({
     "Complete",
   ] as const;
 
-  // ===== Helper untuk hitung quota asli & available org =====
+  const { user } = useB2BOrgStore.getState();
+
+  // Helper Quota Calculation
   const getOriginalStudentQuota = (
     exam: "IELTS" | "TOEFL",
-    testType: string
+    testType: string,
   ) => {
     const examQuotas = (student.quotas as any)?.[exam] ?? {};
-    return (examQuotas[testType] as number | undefined) ?? 0;
+    return getCount(examQuotas[testType]);
   };
 
   const getBaseAvailableQuota = (exam: "IELTS" | "TOEFL", testType: string) => {
@@ -88,7 +135,6 @@ export function QuotaAllocationModal({
     return (examQuotas[testType] as number | undefined) ?? 0;
   };
 
-  // Maksimal quota yang bisa di-set untuk siswa ini = quota siswa sekarang + quota org yang available
   const getMaxQuotaForStudent = (exam: "IELTS" | "TOEFL", testType: string) => {
     return (
       getOriginalStudentQuota(exam, testType) +
@@ -96,14 +142,14 @@ export function QuotaAllocationModal({
     );
   };
 
-  // Sisa available quota org setelah perubahan (realtime)
   const getRemainingAvailable = (exam: "IELTS" | "TOEFL", testType: string) => {
     const baseAvailable = getBaseAvailableQuota(exam, testType);
     const originalStudent = getOriginalStudentQuota(exam, testType);
-    const current =
-      ((quotas as any)?.[exam]?.[testType] as number | undefined) ?? 0;
 
-    const delta = current - originalStudent; // + berarti menambah ke siswa, - berarti mengurangi
+    // Ambil dari state lokal (sudah pasti number)
+    const current = (quotas as any)?.[exam]?.[testType] ?? 0;
+
+    const delta = current - originalStudent;
     const remaining = baseAvailable - delta;
     return remaining < 0 ? 0 : remaining;
   };
@@ -111,7 +157,7 @@ export function QuotaAllocationModal({
   const handleQuotaChange = (
     examType: "IELTS" | "TOEFL",
     testType: string,
-    value: number
+    value: number,
   ) => {
     const maxForStudent = getMaxQuotaForStudent(examType, testType);
     const safeValue = Math.min(Math.max(0, value), maxForStudent);
@@ -125,33 +171,29 @@ export function QuotaAllocationModal({
     }));
   };
 
-  const { user } = useB2BOrgStore.getState();
-
-  console.log(user, "USER");
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const original = student.quotas;
-
       const ops: {
         exam: "IELTS" | "TOEFL";
         testType: string;
         diff: number;
       }[] = [];
 
+      // IELTS Diff
       for (const t of ieltTypes) {
-        const oldVal = original.IELTS[t] ?? 0;
-        const newVal = quotas.IELTS[t] ?? 0;
+        const oldVal = getCount(student.quotas?.IELTS?.[t]);
+        const newVal = quotas.IELTS[t]; // Local state (number)
         const diff = newVal - oldVal;
         if (diff !== 0) {
           ops.push({ exam: "IELTS", testType: t, diff });
         }
       }
 
+      // TOEFL Diff
       for (const t of toeflTypes) {
-        const oldVal = original.TOEFL[t] ?? 0;
-        const newVal = quotas.TOEFL[t] ?? 0;
+        const oldVal = getCount(student.quotas?.TOEFL?.[t]);
+        const newVal = quotas.TOEFL[t]; // Local state (number)
         const diff = newVal - oldVal;
         if (diff !== 0) {
           ops.push({ exam: "TOEFL", testType: t, diff });
@@ -159,7 +201,6 @@ export function QuotaAllocationModal({
       }
 
       const userId = student.user_id;
-      const adminId = undefined; // TODO: inject dari JWT
 
       for (const op of ops) {
         if (op.exam === "IELTS") {
@@ -218,11 +259,11 @@ export function QuotaAllocationModal({
 
   const totalIELTS = ieltTypes.reduce(
     (sum, type) => sum + (quotas.IELTS[type] ?? 0),
-    0
+    0,
   );
   const totalTOEFL = toeflTypes.reduce(
     (sum, type) => sum + (quotas.TOEFL[type] ?? 0),
-    0
+    0,
   );
 
   return (
@@ -231,9 +272,7 @@ export function QuotaAllocationModal({
         <h2 className="text-lg font-semibold text-foreground mb-2">
           {student.users?.name ?? "-"}
         </h2>
-        <p className="text-sm text-muted-foreground ">
-          Allocate test quotas
-        </p>
+        <p className="text-sm text-muted-foreground ">Allocate test quotas</p>
 
         <div className="space-y-8">
           {/* IELTS Section */}
@@ -248,7 +287,7 @@ export function QuotaAllocationModal({
                 const isDisabled =
                   baseAvailable === 0 &&
                   getOriginalStudentQuota("IELTS", testType) === 0;
-                console.log(baseAvailable);
+
                 return (
                   <div key={testType}>
                     <label className="block text-sm font-medium text-foreground mb-2">
@@ -262,18 +301,19 @@ export function QuotaAllocationModal({
                           getMaxQuotaForStudent("IELTS", testType) || undefined
                         }
                         disabled={isDisabled}
-                        value={quotas.IELTS[testType] || ""}
+                        value={quotas.IELTS[testType] || 0}
                         onChange={(e) =>
                           handleQuotaChange(
                             "IELTS",
                             testType,
-                            e.target.value === "" ? 0 : parseInt(e.target.value, 10)
+                            e.target.value === ""
+                              ? 0
+                              : parseInt(e.target.value, 10),
                           )
                         }
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-muted disabled:text-muted-foreground"
                       />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {/* sisa available org (realtime) */}
                         Remaining: {remaining}
                       </span>
                     </div>
@@ -309,12 +349,14 @@ export function QuotaAllocationModal({
                           getMaxQuotaForStudent("TOEFL", testType) || undefined
                         }
                         disabled={isDisabled}
-                        value={quotas.TOEFL[testType] || ""}
+                        value={quotas.TOEFL[testType] || 0}
                         onChange={(e) =>
                           handleQuotaChange(
                             "TOEFL",
                             testType,
-                            e.target.value === "" ? 0 : parseInt(e.target.value, 10)
+                            e.target.value === ""
+                              ? 0
+                              : parseInt(e.target.value, 10),
                           )
                         }
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-muted disabled:text-muted-foreground"
