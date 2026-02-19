@@ -39,6 +39,7 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
+    "@react-pdf/renderer": "^4.3.2",
     "@tabler/icons-react": "^3.35.0",
     "@tanstack/react-query": "^5.90.10",
     "@vercel/analytics": "latest",

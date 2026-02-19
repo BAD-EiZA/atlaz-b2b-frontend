@@ -24,12 +24,19 @@ import {
 } from "@/app/actions/hooks/b2b/useResults";
 import { useParams } from "next/navigation";
 
+import { downloadReactPdf } from "@/lib/reactPdfDownload";
+
+// ✅ PDF components (FINAL versions)
+import CertificatePDF from "@/components/result/certificate-ielts";
+import ToeflCertificatePDF from "@/components/result/certificate-toefl";
+
 // ✨ optional: biar rapi
 type SortField = "recentlyDone" | "createdAt" | "name";
 
 export default function ResultsPage() {
   const params = useParams<{ orgId: string }>();
   const orgId = Number(params.orgId);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [examType, setExamType] = useState<ExamType>("ielts");
   const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
@@ -44,6 +51,9 @@ export default function ResultsPage() {
   // ===== SORT STATE (FE only) =====
   const [sortBy, setSortBy] = useState<SortField>("recentlyDone");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // ✅ download loading per attempt
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   // ---- FETCH RESULTS ----
   const {
@@ -73,111 +83,6 @@ export default function ResultsPage() {
       minute: "2-digit",
       hour12: true,
     });
-  };
-
-  const renderTestDetailsTable = (testDetails: any[], isIelts: boolean) => {
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted">
-              <th className="text-left py-3 px-4 font-semibold text-foreground">
-                Test Type
-              </th>
-              {isIelts ? (
-                <>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Exam Date
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Listening
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Reading
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Writing
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Speaking
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Overall
-                  </th>
-                </>
-              ) : (
-                <>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Exam Date
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Listening
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Structure
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Reading
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-foreground">
-                    Overall
-                  </th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {testDetails.map((detail, idx) => (
-              <tr
-                key={idx}
-                className="border-b border-border hover:bg-muted/50"
-              >
-                <td className="py-3 px-4 text-foreground capitalize font-medium">
-                  {detail.type}
-                </td>
-                <td className="py-3 px-4 text-foreground capitalize font-medium">
-                  {formatDateTime(detail.date)}
-                </td>
-                {isIelts ? (
-                  <>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.listening)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.reading)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.writing)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.speaking)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.overall)}
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.listening)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.structure)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.reading)}
-                    </td>
-                    <td className="py-3 px-4 text-foreground">
-                      {formatScore(detail.overall)}
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
   };
 
   const handleOpenHistory = (studentId: number, studentName: string) => {
@@ -214,9 +119,7 @@ export default function ResultsPage() {
       const aVal = a[field] ? new Date(a[field]).getTime() : 0;
       const bVal = b[field] ? new Date(b[field]).getTime() : 0;
 
-      if (sortDir === "desc") {
-        return bVal - aVal;
-      }
+      if (sortDir === "desc") return bVal - aVal;
       return aVal - bVal;
     });
 
@@ -225,18 +128,11 @@ export default function ResultsPage() {
 
   const handleHeaderSort = (column: SortField) => {
     if (sortBy === column) {
-      // toggle direction
       setSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
     } else {
-      // switch column, default:
-      // - Name → asc (A-Z)
-      // - Date fields → desc (newest first)
       setSortBy(column);
-      if (column === "name") {
-        setSortDir("asc");
-      } else {
-        setSortDir("desc");
-      }
+      if (column === "name") setSortDir("asc");
+      else setSortDir("desc");
     }
   };
 
@@ -246,7 +142,6 @@ export default function ResultsPage() {
         <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground ml-1" />
       );
     }
-
     return sortDir === "desc" ? (
       <ArrowDown className="h-3.5 w-3.5 ml-1" />
     ) : (
@@ -255,6 +150,205 @@ export default function ResultsPage() {
   };
 
   const overallColSpan = examType === "ielts" ? 9 : 8;
+
+  const safeFile = (s: string) =>
+    (s || "certificate")
+      .replace(/[\/\\?%*:|"<>]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const handleDownloadCertificate = async (detail: any, studentName: string) => {
+    // ✅ only for complete attempts (UI already hides button, but keep guard)
+    if (!detail?.isComplete) return;
+
+    const payload = detail?.certificatePayload;
+    if (!payload) {
+      alert("Certificate data belum tersedia untuk attempt ini.");
+      return;
+    }
+
+    // ✅ orgLogo is required by PDF components
+    if (!payload?.orgLogo) {
+      alert("Org partner logo belum tersedia. (b2b_orgs.logo wajib)");
+      return;
+    }
+
+    const key = `${detail.testId}-${examType}`;
+    setDownloadingKey(key);
+
+    try {
+      if (examType === "ielts") {
+        const dateStr = payload.testDate
+          ? new Date(payload.testDate).toISOString().slice(0, 10)
+          : "";
+
+        const filename = safeFile(
+          `IELTS-${payload.registrationId || studentName}-${dateStr}.pdf`
+        );
+
+        await downloadReactPdf({
+          element: <CertificatePDF data={payload} />,
+          filename,
+        });
+      } else {
+        const filename = safeFile(
+          `TOEFL-${payload.registrationId || studentName}-${String(
+            payload.testDate || ""
+          )}.pdf`
+        );
+
+        await downloadReactPdf({
+          element: <ToeflCertificatePDF {...payload} />,
+          filename,
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal download certificate. Coba lagi ya.");
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
+
+  const renderTestDetailsTable = (
+    testDetails: any[],
+    isIelts: boolean,
+    studentName: string
+  ) => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted">
+              <th className="text-left py-3 px-4 font-semibold text-foreground">
+                Test Type
+              </th>
+
+              <th className="text-left py-3 px-4 font-semibold text-foreground">
+                Exam Date
+              </th>
+
+              {isIelts ? (
+                <>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Listening
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Reading
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Writing
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Speaking
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Overall
+                  </th>
+                </>
+              ) : (
+                <>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Listening
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Structure
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Reading
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    Overall
+                  </th>
+                </>
+              )}
+
+              <th className="text-left py-3 px-4 font-semibold text-foreground">
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {testDetails.map((detail, idx) => (
+              <tr
+                key={idx}
+                className="border-b border-border hover:bg-muted/50"
+              >
+                <td className="py-3 px-4 text-foreground capitalize font-medium">
+                  {detail.type}
+                </td>
+
+                <td className="py-3 px-4 text-foreground capitalize font-medium">
+                  {formatDateTime(detail.date)}
+                </td>
+
+                {isIelts ? (
+                  <>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.listening)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.reading)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.writing)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.speaking)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.overall)}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.listening)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.structure)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.reading)}
+                    </td>
+                    <td className="py-3 px-4 text-foreground">
+                      {formatScore(detail.overall)}
+                    </td>
+                  </>
+                )}
+
+                {/* ✅ tombol download hanya muncul untuk COMPLETE test */}
+                <td className="py-3 px-4">
+                  {detail?.isComplete ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        !detail?.certificatePayload ||
+                        downloadingKey === `${detail.testId}-${examType}`
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadCertificate(detail, studentName);
+                      }}
+                      className="min-w-[110px]"
+                    >
+                      {downloadingKey === `${detail.testId}-${examType}`
+                        ? "Downloading..."
+                        : "Download"}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">-</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="p-8">
@@ -329,7 +423,6 @@ export default function ResultsPage() {
               <tr className="border-b border-border bg-muted">
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground w-8" />
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
-                  {/* 🔤 Sort by Name */}
                   <button
                     type="button"
                     onClick={() => handleHeaderSort("name")}
@@ -339,6 +432,7 @@ export default function ResultsPage() {
                     {renderSortIcon("name")}
                   </button>
                 </th>
+
                 {examType === "ielts" ? (
                   <>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
@@ -373,7 +467,7 @@ export default function ResultsPage() {
                     </th>
                   </>
                 )}
-                {/* HEADER SORT: RECENTLY DONE */}
+
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
                   <button
                     type="button"
@@ -384,7 +478,7 @@ export default function ResultsPage() {
                     {renderSortIcon("recentlyDone")}
                   </button>
                 </th>
-                {/* HEADER SORT: CREATED */}
+
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
                   <button
                     type="button"
@@ -397,6 +491,7 @@ export default function ResultsPage() {
                 </th>
               </tr>
             </thead>
+
             <tbody>
               {loading && (
                 <tr>
@@ -429,9 +524,11 @@ export default function ResultsPage() {
                           />
                         </button>
                       </td>
+
                       <td className="py-4 px-6 text-sm text-foreground font-medium">
                         {result.studentName}
                       </td>
+
                       {examType === "ielts" ? (
                         <>
                           <td className="py-4 px-6 text-sm text-foreground">
@@ -466,9 +563,11 @@ export default function ResultsPage() {
                           </td>
                         </>
                       )}
+
                       <td className="py-4 px-6 text-sm text-foreground">
                         {formatDateTime(result.recentlyDone)}
                       </td>
+
                       <td className="py-4 px-6 text-sm text-foreground">
                         {formatDateTime(result.createdAt)}
                       </td>
@@ -484,10 +583,7 @@ export default function ResultsPage() {
                               </h3>
                               <Button
                                 onClick={() =>
-                                  handleOpenHistory(
-                                    result.id,
-                                    result.studentName
-                                  )
+                                  handleOpenHistory(result.id, result.studentName)
                                 }
                                 className="gap-2"
                               >
@@ -495,9 +591,11 @@ export default function ResultsPage() {
                                 Test History
                               </Button>
                             </div>
+
                             {renderTestDetailsTable(
                               result.testDetails || [],
-                              examType === "ielts"
+                              examType === "ielts",
+                              result.studentName
                             )}
                           </div>
                         </td>
@@ -519,6 +617,7 @@ export default function ResultsPage() {
             </tbody>
           </table>
         </div>
+
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
@@ -641,6 +740,7 @@ export default function ResultsPage() {
                                     )}
                                   </tr>
                                 </thead>
+
                                 <tbody>
                                   {(attempts as any[]).map((att) => (
                                     <tr
@@ -650,6 +750,7 @@ export default function ResultsPage() {
                                       <td className="py-3 px-4 text-foreground">
                                         {formatDateTime(att.date)}
                                       </td>
+
                                       {examType === "ielts" ? (
                                         <>
                                           <td className="py-3 px-4 text-foreground">
