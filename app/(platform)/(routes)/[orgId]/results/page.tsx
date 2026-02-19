@@ -1,9 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import React, { Fragment, useMemo, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Search,
   ArrowLeft,
@@ -14,21 +13,26 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
-import Link from "next/link";
+
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Pagination } from "@/components/pagination";
+
 import {
   ExamType,
   useOrgResults,
   useStudentHistory,
 } from "@/app/actions/hooks/b2b/useResults";
-import { useParams } from "next/navigation";
 
-import { downloadReactPdf } from "@/lib/reactPdfDownload";
+// ✅ PDF preview helper (returns blob URL)
+import { generatePdfUrl } from "@/lib/reactPdfPreview";
 
-// ✅ PDF components (FINAL versions)
+// ✅ PDF documents (must return <Document/>)
 import CertificatePDF from "@/components/result/certificate-ielts";
-import ToeflCertificatePDF from "@/components/result/certificate-toefl";
+import ToeflCertificatePDF from "@/components/result/certificate-toefl"
+import PdfPreviewModal from "@/components/result/pdf-preview-modal";
 
 // ✨ optional: biar rapi
 type SortField = "recentlyDone" | "createdAt" | "name";
@@ -40,11 +44,13 @@ export default function ResultsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [examType, setExamType] = useState<ExamType>("ielts");
   const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
+
   const [historyModal, setHistoryModal] = useState<{
     open: boolean;
     studentId: number | null;
     studentName: string;
   }>({ open: false, studentId: null, studentName: "" });
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -52,8 +58,12 @@ export default function ResultsPage() {
   const [sortBy, setSortBy] = useState<SortField>("recentlyDone");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // ✅ download loading per attempt
-  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  // ✅ preview state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // ✅ loading per attempt (rendering pdf)
+  const [renderingKey, setRenderingKey] = useState<string | null>(null);
 
   // ---- FETCH RESULTS ----
   const {
@@ -104,7 +114,7 @@ export default function ResultsPage() {
     const clone = [...arr];
 
     clone.sort((a, b) => {
-      // 🔤 Sort by name (studentName)
+      // 🔤 Sort by name
       if (sortBy === "name") {
         const aName = (a.studentName || "").toLowerCase();
         const bName = (b.studentName || "").toLowerCase();
@@ -131,8 +141,7 @@ export default function ResultsPage() {
       setSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
     } else {
       setSortBy(column);
-      if (column === "name") setSortDir("asc");
-      else setSortDir("desc");
+      setSortDir(column === "name" ? "asc" : "desc");
     }
   };
 
@@ -151,62 +160,47 @@ export default function ResultsPage() {
 
   const overallColSpan = examType === "ielts" ? 9 : 8;
 
-  const safeFile = (s: string) =>
-    (s || "certificate")
-      .replace(/[\/\\?%*:|"<>]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim();
-
-  const handleDownloadCertificate = async (detail: any, studentName: string) => {
-    // ✅ only for complete attempts (UI already hides button, but keep guard)
+  const handlePreviewCertificate = async (detail: any, studentName: string) => {
+    // tombol hanya tampil untuk complete, tapi guard tetap
     if (!detail?.isComplete) return;
 
     const payload = detail?.certificatePayload;
     if (!payload) {
-      alert("Certificate data belum tersedia untuk attempt ini.");
+      alert("Certificate data belum tersedia.");
       return;
     }
 
-    // ✅ orgLogo is required by PDF components
+    // orgLogo wajib
     if (!payload?.orgLogo) {
-      alert("Org partner logo belum tersedia. (b2b_orgs.logo wajib)");
+      alert("Logo partner wajib ada (b2b_orgs.logo).");
       return;
     }
 
     const key = `${detail.testId}-${examType}`;
-    setDownloadingKey(key);
+    setRenderingKey(key);
 
     try {
-      if (examType === "ielts") {
-        const dateStr = payload.testDate
-          ? new Date(payload.testDate).toISOString().slice(0, 10)
-          : "";
-
-        const filename = safeFile(
-          `IELTS-${payload.registrationId || studentName}-${dateStr}.pdf`
-        );
-
-        await downloadReactPdf({
-          element: <CertificatePDF data={payload} />,
-          filename,
-        });
-      } else {
-        const filename = safeFile(
-          `TOEFL-${payload.registrationId || studentName}-${String(
-            payload.testDate || ""
-          )}.pdf`
-        );
-
-        await downloadReactPdf({
-          element: <ToeflCertificatePDF {...payload} />,
-          filename,
-        });
+      // cleanup url sebelumnya
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
       }
-    } catch (e) {
-      console.error(e);
-      alert("Gagal download certificate. Coba lagi ya.");
+
+      const element =
+        examType === "ielts" ? (
+          <CertificatePDF data={payload} />
+        ) : (
+          <ToeflCertificatePDF {...payload} />
+        );
+
+      const url = await generatePdfUrl(element);
+      setPreviewUrl(url);
+      setPreviewOpen(true);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal render certificate untuk preview.");
     } finally {
-      setDownloadingKey(null);
+      setRenderingKey(null);
     }
   };
 
@@ -318,7 +312,7 @@ export default function ResultsPage() {
                   </>
                 )}
 
-                {/* ✅ tombol download hanya muncul untuk COMPLETE test */}
+                {/* ✅ tombol preview hanya muncul untuk COMPLETE test */}
                 <td className="py-3 px-4">
                   {detail?.isComplete ? (
                     <Button
@@ -326,17 +320,17 @@ export default function ResultsPage() {
                       variant="outline"
                       disabled={
                         !detail?.certificatePayload ||
-                        downloadingKey === `${detail.testId}-${examType}`
+                        renderingKey === `${detail.testId}-${examType}`
                       }
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDownloadCertificate(detail, studentName);
+                        handlePreviewCertificate(detail, studentName);
                       }}
                       className="min-w-[110px]"
                     >
-                      {downloadingKey === `${detail.testId}-${examType}`
-                        ? "Downloading..."
-                        : "Download"}
+                      {renderingKey === `${detail.testId}-${examType}`
+                        ? "Loading..."
+                        : "Preview"}
                     </Button>
                   ) : (
                     <span className="text-xs text-muted-foreground">-</span>
@@ -362,6 +356,7 @@ export default function ResultsPage() {
             View and manage student test results and certificates
           </p>
         </div>
+
         <div className="flex gap-2">
           <Link href={`/${orgId}/dashboard`}>
             <Button variant="outline" className="gap-2 bg-transparent">
@@ -386,6 +381,7 @@ export default function ResultsPage() {
           >
             IELTS
           </Button>
+
           <Button
             variant={examType === "toefl" ? "default" : "outline"}
             onClick={() => {
@@ -422,6 +418,7 @@ export default function ResultsPage() {
             <thead>
               <tr className="border-b border-border bg-muted">
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground w-8" />
+
                 <th className="text-left py-4 px-6 text-sm font-semibold text-foreground">
                   <button
                     type="button"
@@ -581,6 +578,7 @@ export default function ResultsPage() {
                               <h3 className="font-semibold text-foreground">
                                 Latest Test Attempts
                               </h3>
+
                               <Button
                                 onClick={() =>
                                   handleOpenHistory(result.id, result.studentName)
@@ -640,6 +638,7 @@ export default function ResultsPage() {
                   {historyModal.studentName}
                 </p>
               </div>
+
               <button
                 onClick={() =>
                   setHistoryModal({
@@ -704,6 +703,7 @@ export default function ResultsPage() {
                                     <th className="text-left py-3 px-4 font-semibold text-foreground">
                                       Date
                                     </th>
+
                                     {examType === "ielts" ? (
                                       <>
                                         <th className="text-left py-3 px-4 font-semibold text-foreground">
@@ -801,6 +801,17 @@ export default function ResultsPage() {
           </Card>
         </div>
       )}
+
+      {/* ✅ CERTIFICATE PREVIEW MODAL */}
+      <PdfPreviewModal
+        open={previewOpen}
+        url={previewUrl}
+        onClose={() => {
+          setPreviewOpen(false);
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }}
+      />
     </div>
   );
 }
